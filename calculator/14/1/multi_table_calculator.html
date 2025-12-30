@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Multi-Table Big Precision Calculator (16 Tables)</title>
+<style>
+  :root{
+    --bg:#0f1420; --tile-on:#8E8E93;
+    --tile-off:#2a3550;
+    --ink:#e8eef8; --muted:#9fb3c8; --digit-ink:#e7f0ff; --gap:10px;
+  }
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    display:flex; flex-direction:column; align-items:center;
+    -webkit-tap-highlight-color: transparent; padding-top: 10px;
+  }
+  h1{font-size:20px; font-weight:700; margin:5px 0 10px}
+  #frame{display:flex; flex-direction:column; align-items:center; width: 100%; max-width: 400px;}
+  .display{
+    width: 90%; background: #2a3550; color: var(--digit-ink);
+    font-size: 40px; text-align: right; padding: 15px 10px; margin-bottom: 10px;
+    border-radius: 5px; overflow-x: auto; white-space: nowrap; font-weight: 300;
+    direction: ltr;
+    scrollbar-width: thin;
+  }
+  .display::-webkit-scrollbar {
+    height: 8px;
+  }
+  .display::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 4px;
+  }
+  .keypad{
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    width: 90%; margin-bottom: 15px;
+  }
+  .calc-button{
+    background: #475a7a; color: var(--digit-ink); font-weight: 600;
+    padding: 15px; border: none; border-radius: 5px; font-size: 24px;
+    cursor: pointer; user-select: none; touch-action: manipulation;
+    transition: background 0.1s;
+  }
+  .calc-button:active{ background: #5a7096; }
+  .op-button{ background: #fe9500; color: #000; }
+  .op-button:active{ background: #ffb74d; }
+  .clear-button{ background: #a5a5a5; color: #000; }
+  .clear-button:active{ background: #cccccc; }
+  .save-button{ background: #34c759; color: white; font-weight: 600; }
+  .save-button:active{ background: #58d684; }
+
+  .bar{width:100%; display:flex; justify-content:center; gap:var(--gap); flex-wrap:wrap; margin-bottom: 10px;}
+  .bar button{
+    margin:0; padding:0; border:none; border-radius:5px;
+    background:var(--tile-off); color:var(--digit-ink); font-weight:700;
+    touch-action:manipulation; user-select:none;
+    width:50px; height:50px; min-width:unset; display:flex; align-items:center; justify-content:center;
+    font-size: 16px;
+  }
+  .btn-on{ 
+    background:#8E8E93!important;
+    color:#000000!important; 
+  }
+  #precisionSetting {
+    width: 90%; 
+    margin: 0 auto 10px; 
+    padding: 10px; 
+    border: 1px solid #2a3550; 
+    border-radius: 5px; 
+    background: #2a3550;
+    color: var(--ink);
+    font-size: 0.9em;
+  }
+  #precisionSetting label {
+    margin-right: 5px;
+  }
+  #precisionSetting input {
+    width: 60px;
+    background: #475a7a;
+    border: none;
+    color: var(--digit-ink);
+    padding: 3px;
+    border-radius: 3px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+<h1>Multi-Table Calculator (16 Tables)</h1>
+<div id="frame">
+  <div id="calculatorDisplay" class="display">0</div>
+  
+  <div id="precisionSetting">
+    <label for="prec">Precision (for division):</label>
+    <input type="number" id="prec" value="100" min="0" max="10000">
+  </div>
+  
+  <div class="keypad">
+    <button class="calc-button clear-button" data-key="C">AC</button>
+    <button class="calc-button op-button" data-key="/">/</button>
+    <button class="calc-button op-button" data-key="*">x</button>
+    <button class="calc-button op-button" data-key="-">-</button>
+
+    <button class="calc-button" data-key="7">7</button>
+    <button class="calc-button" data-key="8">8</button>
+    <button class="calc-button" data-key="9">9</button>
+    <button class="calc-button op-button" data-key="+">+</button>
+    
+    <button class="calc-button" data-key="4">4</button>
+    <button class="calc-button" data-key="5">5</button>
+    <button class="calc-button" data-key="6">6</button>
+    <button class="calc-button op-button" data-key="=">=</button>
+    
+    <button class="calc-button" data-key="1">1</button>
+    <button class="calc-button" data-key="2">2</button>
+    <button class="calc-button" data-key="3">3</button>
+    <button class="calc-button" data-key=".">.</button>
+
+    <button class="calc-button" data-key="0" style="grid-column: span 2;">0</button>
+    <button class="calc-button clear-button" data-key="del">DEL</button>
+    <button class="calc-button clear-button" data-key="neg">+/-</button>
+  </div>
+  
+  <div class="keypad" style="grid-template-columns: 1fr;">
+    <button id="saveFileBtn" class="calc-button save-button">Save Current Table Result (.html)</button>
+  </div>
+
+  <div class="bar">
+    <button id="n0" aria-label="Table Bit 0 (1)" aria-pressed="false">N0 (0)</button>
+    <button id="n1" aria-label="Table Bit 1 (2)" aria-pressed="false">N1 (0)</button>
+    <button id="n2" aria-label="Table Bit 2 (4)" aria-pressed="false">N2 (0)</button>
+    <button id="n3" aria-label="Table Bit 3 (8)" aria-pressed="false">N3 (0)</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ====================================================================================================
+// ===== BIG PRECISION ARITHMETIC CORE =====
+// ====================================================================================================
+
+function N(sign, digits, scale){ return {sign, digits, scale}; }
+function fromString(s){
+    s = (s+"").trim(); let sign = 1;
+    if(s.startsWith("-")){ sign = -1; s = s.slice(1); }
+    const [intPart, decPart=""] = s.includes(".") ? s.split(".") : [s, ""];
+    const digits = (intPart.replace(/^0+/,"") || "0") + decPart;
+    if(digits === "0") return N(1,"0",0);
+    return N(sign, digits.replace(/0+$/, ""), decPart.length); 
+}
+function toString(n){
+    if(n.digits === "0") return "0";
+    const sgn = n.sign < 0 ? "-" : "";
+    let digits = n.digits;
+    let scale = n.scale;
+    if (digits.length <= scale) { 
+        return sgn + "0." + "0".repeat(scale - digits.length) + digits;
+    }
+    let i = digits.length - scale;
+    return sgn + digits.slice(0, i) + (scale > 0 ? "." : "") + digits.slice(i);
+}
+
+function cmpDigits(a, b) { if (a.length !== b.length) return a.length > b.length ? 1 : -1; return a > b ? 1 : a < b ? -1 : 0; }
+function addDigits(a,b){
+    let i=a.length-1,j=b.length-1,c=0,o="";
+    while(i>=0||j>=0||c){ const da=i>=0?(a.charCodeAt(i)-48):0, db=j>=0?(b.charCodeAt(j)-48):0;
+        const s=da+db+c; o=(s%10)+o; c=(s/10)|0; i--; j--; }
+    return o.replace(/^0+/,"") || "0";
+}
+function subDigits(a,b){
+    let i=a.length-1,j=b.length-1,c=0,o="";
+    while(i>=0){ let da=(a.charCodeAt(i)-48)-c, db=j>=0?(b.charCodeAt(j)-48):0;
+        if(da<db){ da+=10; c=1;} else c=0; o=(da-db)+o; i--; j--; }
+    return o.replace(/^0+/,"") || "0";
+}
+function mulDigits(a, b) { 
+    if(a==="0"||b==="0") return "0";
+    const n=a.length,m=b.length,res=new Array(n+m).fill(0);
+    for(let i=n-1;i>=0;i--){ const ai=a.charCodeAt(i)-48;
+        for(let j=m-1;j>=0;j--){ const bj=b.charCodeAt(j)-48; const k=i+j+1, s=ai*bj+res[k];
+        res[k]=s%10; res[k-1]+= (s/10)|0; } }
+    return res.join("").replace(/^0+/,"") || "0";
+}
+function divStep(rem, div) { 
+    if (cmpDigits(rem, div) < 0) return { q: 0, r: rem };
+    let lo = 1, hi = 9, best = 0;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const prod = mulDigits(div, String(mid)); 
+        const c = cmpDigits(prod, rem);
+        if (c <= 0) { best = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    const prod = mulDigits(div, String(best));
+    const r = subDigits(rem, prod);
+    return { q: best, r };
+}
+
+function align(a,b){ let da=a.digits, db=b.digits, sa=a.scale, sb=b.scale;
+    if(sa<sb){ da+= "0".repeat(sb-sa); sa=sb; } else if(sb<sa){ db+= "0".repeat(sa-sb); sb=sa; }
+    return {A:N(a.sign,da,sa), B:N(b.sign,db,sb), scale:sa};
+}
+function neg(a){ return N(-a.sign, a.digits, a.scale); }
+function add(a,b){
+    a=fromString(toString(a)); b=fromString(toString(b));
+    const {A,B,scale}=align(a,b);
+    const c=cmpDigits(A.digits,B.digits);
+    if(A.sign===B.sign) return N(A.sign, addDigits(A.digits,B.digits), scale);
+    if(c===0) return N(1,"0",0);
+    if(c>0) return N(A.sign, subDigits(A.digits,B.digits), scale);
+    return N(B.sign, subDigits(B.digits,A.digits), scale);
+}
+function sub(a,b){ return add(a, neg(b)); }
+function mul(a, b) { 
+    a = fromString(toString(a)); b = fromString(toString(b));
+    return N(a.sign * b.sign, mulDigits(a.digits, b.digits), a.scale + b.scale);
+}
+function div(a, b, p) {
+    a = fromString(toString(a)); b = fromString(toString(b));
+    if (b.digits === "0") throw new Error("Division by zero");
+    
+    let shift = p + b.scale - a.scale;
+    if (shift < 0) shift = 0;
+
+    let dividend = a.digits + "0".repeat(shift);
+    const divisor = b.digits;
+    let rem = "0", Q = "";
+    
+    for (let i = 0; i < dividend.length; i++) {
+        rem = (rem === "0" ? "" : rem) + dividend[i];
+        rem = rem.replace(/^0+/, "") || "0";
+        
+        if (cmpDigits(rem, divisor) < 0) {
+            Q += "0";
+        } else {
+            const { q, r } = divStep(rem, divisor);
+            Q += String(q);
+            rem = r;
+        }
+    }
+    
+    Q = Q.replace(/^0+/, "") || "0";
+    
+    return N(a.sign * b.sign, Q, p);
+}
+
+// ====================================================================================================
+// ===== CALCULATOR CONTROLLER LOGIC =====
+// ====================================================================================================
+
+(() => {
+  const STORAGE_KEY = `multi_table_calc_v2_big_prec`;
+
+  const defaultCalcState = () => ({
+    displayValue: "0",
+    previousValue: null,
+    operation: null,
+    waitingForNewNumber: true,
+    history: "" 
+  });
+  
+  let calculatorStates = Array.from({length:16}, defaultCalcState);
+  let activeButtons = [false,false,false,false];
+  let viewIndex = 0;
+  let precision = 100;
+
+  const displayEl = document.getElementById('calculatorDisplay');
+  const precEl = document.getElementById('prec');
+  const btns = [
+    document.getElementById('n0'),
+    document.getElementById('n1'),
+    document.getElementById('n2'),
+    document.getElementById('n3'),
+  ];
+  const calcBtns = document.querySelectorAll('.calc-button');
+  
+  function scrollDisplayToEnd() {
+    const el = displayEl;
+    el.scrollLeft = el.scrollWidth - el.clientWidth;
+  }
+
+  function maskFromButtons(){
+    return (activeButtons[0]?1:0) | (activeButtons[1]?2:0) | (activeButtons[2]?4:0) | (activeButtons[3]?8:0);
+  }
+
+  function updateDisplay(){
+    displayEl.textContent = calculatorStates[viewIndex].displayValue;
+    scrollDisplayToEnd();
+  }
+
+  function saveState(){ 
+    try{ 
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          calculatorStates, 
+          activeButtons, 
+          viewIndex,
+          precision: precEl.value 
+      })); 
+    }catch(e){} 
+  }
+
+  function loadState(){
+    try{
+      const s = localStorage.getItem(STORAGE_KEY);
+      if(s){
+        const st = JSON.parse(s);
+        if(st && Array.isArray(st.calculatorStates) && st.calculatorStates.length===16){
+          calculatorStates = st.calculatorStates.map((c) => {
+            if(!c || typeof c.displayValue !== 'string') return defaultCalcState();
+            if(c.previousValue!==null && typeof c.previousValue !== 'string') c.previousValue = String(c.previousValue);
+            if(typeof c.history !== 'string') c.history = "";
+            return c;
+          });
+          if(Array.isArray(st.activeButtons) && st.activeButtons.length===4){ activeButtons = st.activeButtons.map(Boolean); }
+          if(typeof st.viewIndex==='number') viewIndex = Math.max(0, Math.min(15, st.viewIndex));
+          if(typeof st.precision!=='undefined') precEl.value = st.precision;
+          return true;
+        }
+      }
+    }catch(e){ localStorage.removeItem(STORAGE_KEY); }
+    return false;
+  }
+
+  function renderButtons(){ 
+    btns.forEach((btn, i) => {
+      const on = !!activeButtons[i];
+      btn.classList.toggle('btn-on', on); 
+      btn.setAttribute('aria-pressed', String(on)); 
+      btn.textContent = `N${i} (${on?1:0})`; 
+    });
+  }
+
+  function pressButton(index){
+    const oldViewIndex = viewIndex;
+    activeButtons[index] = !activeButtons[index];
+    renderButtons();
+    viewIndex = maskFromButtons();
+    if (oldViewIndex !== viewIndex) updateDisplay();
+    saveState();
+  }
+  
+  btns.forEach((btn, i) => {
+    btn.addEventListener('click', () => pressButton(i));
+  });
+  
+  precEl.addEventListener('input', saveState);
+
+  function calculate(num1Str, num2Str, op, precision) {
+      try {
+          const a = fromString(num1Str);
+          const b = fromString(num2Str);
+          let resultN;
+          switch (op) {
+              case '+': resultN = add(a, b); break;
+              case '-': resultN = sub(a, b); break;
+              case '*': resultN = mul(a, b); break;
+              case '/': resultN = div(a, b, precision); break;
+              default: return num2Str;
+          }
+          return toString(resultN);
+      } catch (e) {
+          return "Error: " + (e.message || "Calculation error");
+      }
+  }
+
+  function updateHistory(state, op, valueStr, isInitial = false) {
+      if (isInitial) {
+          state.history += valueStr + "\n";
+      } else {
+          state.history += op + "\n" + valueStr + "\n";
+      }
+  }
+
+  function handleInput(key) {
+    let state = calculatorStates[viewIndex];
+    const maxDigits = 2000; 
+    
+    if (/\d/.test(key) || key === '.') {
+      if (state.waitingForNewNumber) {
+        state.displayValue = key === '.' ? '0.' : key;
+        state.waitingForNewNumber = false;
+        if (state.history.includes("=")) state.history = "";
+      } else {
+        if (key === '.' && state.displayValue.includes('.')) return;
+        const currentDigits = state.displayValue.replace(/[\.\-]/g, "");
+        if (currentDigits.length >= maxDigits) return;
+        state.displayValue = state.displayValue === '0' && key !== '.' ? key : state.displayValue + key;
+      }
+    }
+    
+    else if (['+', '-', '*', '/'].includes(key)) {
+      const inputValue = state.displayValue;
+      
+      if (state.previousValue === null) {
+        state.previousValue = inputValue;
+        state.history = "";
+        updateHistory(state, null, state.previousValue, true);
+      } else if (state.operation) {
+        const p = parseInt(precEl.value || "0", 10);
+        const result = calculate(state.previousValue, inputValue, state.operation, p);
+        updateHistory(state, state.operation, inputValue); 
+        state.displayValue = result;
+        state.previousValue = state.displayValue;
+      } else if (state.previousValue !== null && state.history.includes("=")) {
+        state.previousValue = inputValue;
+        state.history = "";
+        updateHistory(state, null, state.previousValue, true);
+      }
+      
+      state.waitingForNewNumber = true;
+      state.operation = key;
+    }
+    
+    else if (key === '=') {
+      if (state.previousValue !== null && state.operation !== null) {
+        const p = parseInt(precEl.value || "0", 10);
+        updateHistory(state, state.operation, state.displayValue);
+        const result = calculate(state.previousValue, state.displayValue, state.operation, p);
+        state.displayValue = result;
+        state.previousValue = state.displayValue;
+        state.operation = null;
+        state.waitingForNewNumber = true;
+        state.history += "=\n" + result + "\n";
+      }
+    }
+    
+    else if (key === 'C') {
+      Object.assign(state, defaultCalcState());
+    }
+    
+    else if (key === 'del') {
+        if (!state.waitingForNewNumber) {
+            let s = state.displayValue;
+            if (s.length > 1) s = s.slice(0, -1);
+            else s = '0';
+            if(s==="" || s==="-") s='0';
+            state.displayValue = s;
+        }
+    }
+
+    else if (key === 'neg') {
+      try {
+          const num = fromString(state.displayValue);
+          num.sign *= -1;
+          state.displayValue = toString(num);
+      } catch (e) {}
+    }
+    
+    calculatorStates[viewIndex] = state;
+    updateDisplay();
+    saveState();
+  }
+
+  calcBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+          handleInput(btn.getAttribute('data-key'));
+      });
+  });
+
+  document.getElementById("saveFileBtn").addEventListener("click", () => {
+      const now = new Date();
+      const tsName = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const resultText = displayEl.textContent;
+      const tableIndex = viewIndex;
+      const calcState = calculatorStates[viewIndex];
+      const fullHistoryText = calcState.history.trim(); 
+      const precValue = precEl.value;
+      
+      if(!resultText || resultText === "0"){ 
+          alert("Nincs menthető eredmény.");
+          return; 
+      }
+      
+      let htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator Result - Table ${tableIndex} - ${tsName}</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        .timestamp { color: #777; font-size: 0.9em; margin-bottom: 20px; }
+        .table-info { font-weight: bold; margin-bottom: 10px; }
+        .history-box { 
+            font-style: italic; 
+            color: #555; 
+            margin-bottom: 20px; 
+            white-space: pre-wrap; 
+            word-break: break-all;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .result-box { background-color: #eee; padding: 15px; border-radius: 5px; font-size: 1.5em; font-family: monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+        .note { margin-top: 15px; font-size: 0.8em; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Multi-Table Calculator Result</h1>
+        <div class="timestamp">Timestamp: ${now.toLocaleString('hu-HU')}</div>
+        <p class="table-info">Table Index: ${tableIndex}</p>
+        
+        <p><strong>Calculation History:</strong></p>
+        <div class="history-box">${fullHistoryText.replace(/\n/g, '<br>')}</div> 
+        
+        <p><strong>Final Result:</strong></p>
+        <div class="result-box">${resultText}</div>
+        
+        <p class="note">Note: Big Precision arithmetic. Division precision: ${precValue} digits.</p>
+    </div>
+</body>
+</html>`;
+
+      const blob = new Blob(['\uFEFF' + htmlContent], {type: 'text/html;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `calculator_result_T${tableIndex}_${tsName}.html`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      
+      displayEl.textContent = `Saved T${tableIndex}!`;
+      setTimeout(updateDisplay, 1500);
+  });
+
+  if (!loadState()) {
+      calculatorStates = Array.from({length:16}, defaultCalcState);
+  }
+  renderButtons();
+  updateDisplay();
+  saveState();
+})();
+</script>
+</body>
+</html>

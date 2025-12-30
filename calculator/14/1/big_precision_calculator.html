@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Big Precision Calculator (Chained Operations)</title>
+<style>
+/* Simple, clean style to highlight functionality */
+body { font-family: sans-serif; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+.calculator { background-color: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); width: 350px; }
+#history-display { 
+    background-color: #eee; 
+    padding: 10px 15px; 
+    border-radius: 5px 5px 0 0; 
+    font-size: 0.9em; 
+    height: 30px; /* Csökkentve egy sorhoz */
+    overflow-x: auto; 
+    overflow-y: hidden; /* Nincs függőleges görgetés */
+    white-space: nowrap; /* Csak egy sor */
+    word-break: break-all;
+    font-family: monospace;
+    color: #777;
+    direction: ltr;
+    text-align: right; /* Jobbra igazítás mint a számológépekben */
+}
+#history { min-height: 1em; color: #777; font-size: 0.8em; text-align: right; margin-bottom: 5px; overflow-x: auto; white-space: nowrap; }
+#display { 
+    background-color: #eee; 
+    padding: 5px 15px 15px 15px; 
+    border-radius: 0 0 5px 5px; 
+    margin-bottom: 15px; 
+    font-size: 2em; 
+    overflow-x: auto; 
+    white-space: nowrap; 
+    font-family: monospace;
+    direction: ltr;
+    text-align: right;
+}
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+button { padding: 15px; font-size: 1.2em; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.1s; }
+.op { background-color: #ff9500; color: white; }
+.eq { background-color: #007aff; color: white; grid-column: span 2; }
+.ac { background-color: #ff3b30; color: white; }
+.func { background-color: #5856d6; color: white; }
+.save { background-color: #34c759; color: white; }
+.settings { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<div class="calculator">
+    
+    <div id="history-display"></div> 
+    <div id="display">0</div>
+    
+    <div class="settings">
+        <label for="prec">Precision (for division):</label>
+        <input type="number" id="prec" value="1000" min="0" max="10000">
+        <p style="margin-top: 5px; color: #777;">*Large $n!$ operations must be saved manually from the display.</p>
+    </div>
+
+    <div class="grid" style="margin-top: 15px;">
+        <button class="ac" data-act="ac">AC</button>
+        <button class="ac" data-act="ce">CE</button>
+        <button class="op" data-act="back">⌫</button>
+        <button class="op" data-op="div">÷</button>
+
+        <button data-num="7">7</button>
+        <button data-num="8">8</button>
+        <button data-num="9">9</button>
+        <button class="op" data-op="mul">×</button>
+
+        <button data-num="4">4</button>
+        <button data-num="5">5</button>
+        <button data-num="6">6</button>
+        <button class="op" data-op="sub">−</button>
+
+        <button data-num="1">1</button>
+        <button data-num="2">2</button>
+        <button data-num="3">3</button>
+        <button class="op" data-op="add">+</button>
+
+        <button class="func" data-act="neg">±</button>
+        <button data-num="0">0</button>
+        <button data-act="dot">.</button>
+        <button class="op eq" data-act="eq">=</button>
+        
+        <button class="func" id="factBtn" style="grid-column: span 1;">n!</button>
+        <button class="func" id="factInfoBtn" style="grid-column: span 1;">n! info</button>
+        <button class="save" id="saveFileBtn" style="grid-column: span 2;">Save (.html)</button> </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===== Persistence and Helpers ===== */
+const STORE_KEY = "BPCv2_CHAINED_STATE";
+let saveTimer = null;
+
+function saveTextFile(filename, text, mimeType = 'text/plain'){
+    const BOM = "\uFEFF"; 
+    const blob = new Blob([BOM + text], {type:`${mimeType};charset=utf-8`}); 
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+function tsForFilename(date){
+    const pad = n => String(n).padStart(2,'0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+}
+
+function saveState(){
+  try{
+    const payload = {
+      display: currEl.textContent, 
+      prec: precEl.value,
+      x: S.x, 
+      y: S.y,
+      op: S.op,
+      typing: S.typing,
+      repeatValue: S.repeatValue, 
+      repeatOp: S.repeatOp,
+      history: S.history,
+      lastResult: S.lastResult
+    };
+    localStorage.setItem(STORE_KEY, JSON.stringify(payload));
+  }catch(e){ console.error("Could not save state:", e); }
+}
+function scheduleSave(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveState, 50);
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return false;
+    const s = JSON.parse(raw);
+    
+    if(s.prec) precEl.value = s.prec;
+    if(typeof s.display === "string") currEl.textContent = s.display; 
+    if(typeof s.history === "string") S.history = s.history; 
+    if(typeof s.lastResult === "string") S.lastResult = s.lastResult;
+
+    // N (Big Number) objektumok rekonstrukciója
+    if (s.x) S.x = N(s.x.sign, s.x.digits, s.x.scale);
+    if (s.y) S.y = N(s.y.sign, s.y.digits, s.y.scale);
+    if (s.op) S.op = s.op;
+    if (typeof s.typing === "boolean") S.typing = s.typing;
+
+    // Ismétlési állapot rekonstrukciója
+    if (s.repeatValue) S.repeatValue = N(s.repeatValue.sign, s.repeatValue.digits, s.repeatValue.scale);
+    if (s.repeatOp) S.repeatOp = s.repeatOp;
+    
+    return true;
+  }catch(e){ 
+    console.error("Could not load state, resetting.", e); 
+    return false;
+  }
+}
+
+
+/* ===== Big Decimal magja (string-alapú aritmetika a precíziós műveletekhez) - JAVÍTVA ===== */
+function N(sign, digits, scale){ return {sign, digits, scale}; }
+function fromString(s){
+    s = (s+"").trim(); let sign = 1;
+    if(s.startsWith("-")){ sign = -1; s = s.slice(1); }
+    const [intPart, decPart=""] = s.includes(".") ? s.split(".") : [s, ""];
+    
+    const digits = (intPart.replace(/^0+/,"") || "0") + decPart;
+    
+    if(digits === "0") return N(1,"0",0);
+    
+    // Módosított logika: Csak akkor távolítjuk el a nullákat a végéről, ha van tizedesrész!
+    if (decPart.length > 0) {
+        // Ha van tizedesrész, eltávolítjuk az utolsó felesleges nullákat. (pl. "1.200" -> "12")
+        return N(sign, digits.replace(/0+$/, ""), decPart.length);
+    } else {
+        // Ha nincs tizedesrész (pl. 450), a nullát meghagyjuk, hogy ne legyen 45!
+        return N(sign, digits, decPart.length);
+    }
+}
+
+function toString(n){
+    if(n.digits === "0") return "0";
+    const sgn = n.sign < 0 ? "-" : "";
+    let digits = n.digits;
+    let scale = n.scale;
+    
+    if (digits.length <= scale) { 
+        return sgn + "0." + "0".repeat(scale - digits.length) + digits;
+    }
+    
+    let i = digits.length - scale;
+    return sgn + digits.slice(0, i) + (scale > 0 ? "." : "") + digits.slice(i);
+}
+function cmpDigits(a, b) { if (a.length !== b.length) return a.length > b.length ? 1 : -1; return a > b ? 1 : a < b ? -1 : 0; }
+function addDigits(a,b){
+    let i=a.length-1,j=b.length-1,c=0,o="";
+    while(i>=0||j>=0||c){ const da=i>=0?(a.charCodeAt(i)-48):0, db=j>=0?(b.charCodeAt(j)-48):0;
+        const s=da+db+c; o=(s%10)+o; c=(s/10)|0; i--; j--; }
+    return o.replace(/^0+/,"") || "0";
+}
+function subDigits(a,b){
+    let i=a.length-1,j=b.length-1,c=0,o="";
+    while(i>=0){ let da=(a.charCodeAt(i)-48)-c, db=j>=0?(b.charCodeAt(j)-48):0;
+        if(da<db){ da+=10; c=1;} else c=0; o=(da-db)+o; i--; j--; }
+    return o.replace(/^0+/,"") || "0";
+}
+function mulDigits(a, b) { 
+    if(a==="0"||b==="0") return "0";
+    const n=a.length,m=b.length,res=new Array(n+m).fill(0);
+    for(let i=n-1;i>=0;i--){ const ai=a.charCodeAt(i)-48;
+        for(let j=m-1;j>=0;j--){ const bj=b.charCodeAt(j)-48; const k=i+j+1, s=ai*bj+res[k];
+        res[k]=s%10; res[k-1]+= (s/10)|0; } }
+    return res.join("").replace(/^0+/,"") || "0";
+}
+function align(a,b){ let da=a.digits, db=b.digits, sa=a.scale, sb=b.scale;
+    if(sa<sb){ da+= "0".repeat(sb-sa); sa=sb; } else if(sb<sa){ db+= "0".repeat(sa-sb); sb=sa; }
+    return {A:N(a.sign,da,sa), B:N(b.sign,db,sb), scale:sa};
+}
+function neg(a){ return N(-a.sign, a.digits, a.scale); }
+function add(a,b){
+    a=fromString(toString(a)); b=fromString(toString(b));
+    const {A,B,scale}=align(a,b);
+    const c=cmpDigits(A.digits,B.digits);
+    if(A.sign===B.sign) return N(A.sign, addDigits(A.digits,B.digits), scale);
+    if(c===0) return N(1,"0",0);
+    if(c>0) return N(A.sign, subDigits(A.digits,B.digits), scale);
+    return N(B.sign, subDigits(B.digits,A.digits), scale);
+}
+function sub(a,b){ return add(a, neg(b)); }
+function mul(a, b) { 
+    a = fromString(toString(a)); b = fromString(toString(b));
+    return N(a.sign * b.sign, mulDigits(a.digits, b.digits), a.scale + b.scale);
+}
+function divStep(rem, div) { 
+    if (cmpDigits(rem, div) < 0) return { q: 0, r: rem };
+    let lo = 1, hi = 9, best = 0;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const prod = mulDigits(div, String(mid)); 
+        const c = cmpDigits(prod, rem);
+        if (c <= 0) { best = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    const prod = mulDigits(div, String(best));
+    const r = subDigits(rem, prod);
+    return { q: best, r };
+}
+function div(a, b, p) {
+    a = fromString(toString(a)); b = fromString(toString(b));
+    if (b.digits === "0") throw new Error("Division by zero");
+    
+    let shift = p + b.scale - a.scale;
+    if (shift < 0) shift = 0;
+
+    let dividend = a.digits + "0".repeat(shift);
+    const divisor = b.digits;
+    let rem = "0", Q = "";
+
+    for (let i = 0; i < dividend.length; i++) {
+        rem = (rem === "0" ? "" : rem) + dividend[i];
+        rem = rem.replace(/^0+/, "") || "0";
+        
+        if (cmpDigits(rem, divisor) < 0) {
+            Q += "0";
+        } else {
+            const { q, r } = divStep(rem, divisor);
+            Q += String(q);
+            rem = r;
+        }
+    }
+    
+    Q = Q.replace(/^0+/, "") || "0";
+    return N(a.sign * b.sign, Q, p);
+}
+
+
+/* ===== UI és Controller Logika (EGYSZERŰSÍTVE) ===== */
+const histDispEl = document.getElementById("history-display"); 
+const currEl = document.getElementById("display");
+const precEl = document.getElementById("prec");
+
+let S = { 
+    x: N(1,"0",0), 
+    y: null, 
+    op: null, 
+    typing: false, 
+    repeatValue: null, 
+    repeatOp: null,
+    history: "",
+    lastResult: null
+};
+
+function setDisplayText(t){ 
+    currEl.textContent=t; 
+    // Görgetés jobb szélre a vízszintesben
+    setTimeout(() => {
+        currEl.scrollLeft = currEl.scrollWidth;
+    }, 0);
+    scheduleSave(); 
+}
+
+function showNumber(n){ 
+    currEl.textContent = toString(n); 
+    // Görgetés jobb szélre a vízszintesben
+    setTimeout(() => {
+        currEl.scrollLeft = currEl.scrollWidth;
+    }, 0);
+    scheduleSave(); 
+}
+
+function setHistory(t){ 
+    histDispEl.textContent = t; 
+    // Görgetés jobb szélre a vízszintesben
+    setTimeout(() => {
+        histDispEl.scrollLeft = histDispEl.scrollWidth;
+    }, 0);
+    scheduleSave(); 
+}
+
+function parseDisplay(){ 
+    let s = currEl.textContent;
+    if(s.endsWith(".")) s = s.slice(0,-1);
+    if(s==="" || s==="-" ) s = "0";
+    return fromString(s);
+}
+
+// --- EGYSZERŰSÍTETT ELŐZMÉNYKEZELÉS ---
+function updateHistory(op, valueN){
+    const sym = {add:"+", sub:"−", mul:"×", div:"÷"}[op] || "?";
+    const valueStr = toString(valueN);
+    
+    // Frissíti az előzménysort: "előző érték + operátor + aktuális érték"
+    if(S.history === "" || S.op === null) {
+        S.history = valueStr + " " + sym;
+    } else {
+        // Ha már van művelet, frissítjük a teljes kifejezést
+        S.history += " " + valueStr + " " + sym;
+    }
+    
+    setHistory(S.history);
+}
+
+function clearHistory(){ 
+    S.history = ""; 
+    setHistory(""); 
+}
+
+// Számjegybevitel 
+function inputDigit(d){
+    if(!S.typing && S.op === null){
+        S.x = N(1,"0",0); 
+        S.y = null;
+        S.repeatValue = null;
+        S.repeatOp = null;
+        clearHistory(); 
+    }
+    
+    let s = S.typing ? currEl.textContent : "0";
+    if(s==="0" && !s.includes(".")) s="";
+    s += d;
+    setDisplayText(s);
+    S.typing=true;
+    scheduleSave();
+}
+function inputDot(){
+    let s = S.typing ? currEl.textContent : "0";
+    if(s.includes(".")) return;
+    if(s==="") s="0";
+    s += ".";
+    setDisplayText(s);
+    S.typing = true;
+    scheduleSave();
+}
+function back(){
+    let s = currEl.textContent;
+    if(!S.typing) s = toString(S.x);
+    if(s.length<=1){ s="0"; }
+    else{ s = s.slice(0,-1); if(s==="" || s==="-" ) s="0"; }
+    setDisplayText(s);
+    S.typing=true;
+    scheduleSave();
+}
+function negate(){ 
+    S.x = parseDisplay();
+    S.x.sign *= -1; 
+    showNumber(S.x); 
+    S.typing=false; 
+    scheduleSave(); 
+}
+
+// Műveletek (LÁNCOLT MŰVELET LOGIKÁVAL)
+function setOp(op){
+    const p = parseInt(precEl.value || "0", 10);
+    const sym = {add:"+", sub:"−", mul:"×", div:"÷"}[op] || "?";
+    
+    // 1. Ha épp egy számot írunk be (az X értékét)
+    if(S.typing){
+        S.x = parseDisplay();
+        
+        // Ha van folyamatban lévő művelet (láncolás)
+        if(S.op !== null){
+            S.repeatValue = S.x; 
+            S.repeatOp = S.op; 
+            S.y = calculate(S.y, S.x, S.op, p); 
+            
+            updateHistory(S.op, S.x); 
+            S.x = N(1,"0",0); 
+
+        } else if(S.op === null) {
+            // Első lépés: X lesz az Y.
+            S.y = S.x; 
+            updateHistory('add', S.x); 
+            S.x = N(1,"0",0); 
+            S.repeatValue = null; 
+            S.repeatOp = null;
+        } 
+    } 
+    // 2. Ha NEM írunk be számot (művelet ismétlése vagy operátor csere)
+    else {
+        if (S.repeatValue !== null && S.repeatOp === op && S.y !== null){
+            S.y = calculate(S.y, S.repeatValue, S.repeatOp, p);
+            updateHistory(S.repeatOp, S.repeatValue); 
+        } else {
+            // Operátor csere.
+            if (S.y !== null) {
+                // Frissíti az előzményt az új operátorral
+                if (S.history.endsWith(S.op)) {
+                    S.history = S.history.slice(0, -1) + sym;
+                }
+            }
+        }
+    }
+
+    S.op = op; 
+    S.typing=false;
+    showNumber(S.y); 
+    
+    // Frissíti az előzményt az új operátorral
+    if (S.history !== "") {
+        const parts = S.history.split(' ');
+        if (parts.length >= 2) {
+            parts[parts.length - 1] = sym;
+            S.history = parts.join(' ');
+            setHistory(S.history);
+        }
+    }
+
+    scheduleSave();
+}
+
+// --- EGYENLŐSÉG JEL ---
+function equals(){
+    if(!S.op || S.y===null) return;
+    try{
+        const p = parseInt(precEl.value || "0", 10);
+        let currentX;
+        
+        if(S.typing){
+            currentX = parseDisplay();
+            S.repeatValue = currentX; 
+            S.repeatOp = S.op; 
+        } else {
+            currentX = S.repeatValue || S.y; 
+            S.repeatValue = currentX; 
+        }
+        
+        updateHistory(S.op, currentX);
+
+        const r = calculate(S.y, currentX, S.op, p);
+        
+        S.x = r; 
+        S.y = r; 
+        S.op = null; 
+        S.typing = false; 
+        S.lastResult = toString(r);
+        
+        // Az '=' jel hozzáadása az előzményhez
+        S.history += " = " + S.lastResult;
+        setHistory(S.history);
+        
+        showNumber(r);
+
+    }catch(e){
+        currEl.textContent = "Error: " + (e.message||"");
+        setHistory("");
+        clearHistory(); 
+    }
+    scheduleSave();
+}
+
+function calculate(num1N, num2N, op, precision) {
+    try {
+        const a = (typeof num1N === 'string') ? fromString(num1N) : num1N;
+        const b = (typeof num2N === 'string') ? fromString(num2N) : num2N;
+        
+        let resultN;
+        switch (op) {
+            case 'add': resultN = add(a, b); break;
+            case 'sub': resultN = sub(a, b); break;
+            case 'mul': resultN = mul(a, b); break;
+            case 'div': resultN = div(a, b, precision); break;
+            default: return b;
+        }
+        
+        return resultN;
+    } catch (e) {
+        throw e;
+    }
+}
+
+// --- Faktoriális és Exportálás (MÓDOSÍTVA) ---
+function getCurrentInteger(){
+    const s = currEl.textContent;
+    if(s.includes(".")) return null;
+    const n = parseInt(s, 10);
+    if(isNaN(n) || n < 0) return null;
+    return n;
+}
+function digitsCountOfFactorial(n){
+    if(n < 2) return 1;
+    const pi = Math.PI, e = Math.E;
+    const x = n * Math.log10(n / e) + 0.5 * Math.log10(2 * pi * n);
+    return Math.floor(x) + 1;
+}
+function trailingZerosOfFactorial(n){
+    let z = 0; while(n){ n = (n / 5) | 0; z += n; } return z;
+}
+async function factorialDigits(n){
+    let res = "1";
+    for(let i=2; i<=n; i++){
+        if (i % 100 === 0) {
+            setHistory(`Calculating: ${i}!...`);
+            await new Promise(r => setTimeout(r, 0));
+        }
+        res = mulDigits(res, String(i));
+    }
+    return res;
+}
+
+document.getElementById("factInfoBtn").addEventListener("click", ()=>{
+    const n = getCurrentInteger();
+    if(n === null || n > 10000000) { setHistory("n! info: only non-negative integers $n \\le 10^7$"); return; }
+    const digits = digitsCountOfFactorial(n);
+    const zeros = trailingZerosOfFactorial(n);
+    S.history = `${n}! info: approx. ${digits.toLocaleString()} digits, ${zeros.toLocaleString()} trailing zeros.`;
+    setHistory(S.history);
+    scheduleSave();
+});
+
+document.getElementById("factBtn").addEventListener("click", async ()=>{
+    const n = getCurrentInteger();
+    const HARD_CAP = 10000; 
+    if(n === null || n > HARD_CAP){ 
+        setHistory(`n!: only non-negative integers $n \\le ${HARD_CAP}$.`); return;
+    }
+    
+    S.history = `Calculating: ${n}!... Please wait. (approx. ${digitsCountOfFactorial(n).toLocaleString()} digits)`;
+    setHistory(S.history);
+    try{
+        const digits = await factorialDigits(n);
+        currEl.textContent = digits;
+        S.history = `${n}! = ${digits}`;
+        setHistory(S.history);
+    }catch(e){
+        currEl.textContent = "Error: " + (e.message||"");
+        setHistory("");
+    }
+    scheduleSave();
+});
+
+document.getElementById("saveFileBtn").addEventListener("click", ()=>{
+    const now = new Date();
+    const tsName = tsForFilename(now);
+    
+    const historyText = (S.history || "").trim();
+    const resultText = (currEl.textContent || "").trim();
+    const precValue = precEl.value;
+    
+    if(!resultText || resultText === "0"){ setHistory("No meaningful result to save."); return; }
+    
+    let htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator Result - ${tsName}</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        .timestamp { color: #777; font-size: 0.9em; margin-bottom: 20px; }
+        .history-box { 
+            color: #555; 
+            margin-bottom: 20px; 
+            white-space: pre-wrap; 
+            word-break: break-all;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .result-box { background-color: #eee; padding: 15px; border-radius: 5px; font-size: 1.5em; font-family: monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+        .note { margin-top: 15px; font-size: 0.8em; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Big Precision Calculator Result</h1>
+        <div class="timestamp">Timestamp: ${now.toLocaleString('en-US')}</div>
+        
+        <p><strong>Calculation History:</strong></p>
+        <div class="history-box">${historyText.replace(/\n/g, '<br>')}</div> 
+        
+        <p><strong>Final Result:</strong></p>
+        <div class="result-box">${resultText}</div>
+        
+        <p class="note">Note: This result was calculated with a division precision of ${precValue} digits using a chaining operation system.</p>
+    </div>
+</body>
+</html>`;
+
+    saveTextFile(`calculator_result_${tsName}.html`, htmlContent, 'text/html'); 
+    S.history += " (Result saved to .html file!)";
+    setHistory(S.history);
+    scheduleSave();
+});
+
+
+/* ===== Eseménykezelők és Inicializálás ===== */
+document.querySelectorAll(".grid button[data-num]").forEach(b => b.addEventListener("click", () => inputDigit(b.dataset.num)));
+document.querySelector("[data-act='dot']").addEventListener("click", inputDot);
+document.querySelector("[data-act='back']").addEventListener("click", back);
+document.querySelector("[data-act='neg']").addEventListener("click", negate);
+document.querySelector("[data-act='eq']").addEventListener("click", equals);
+document.querySelectorAll("[data-op]").forEach(b => b.addEventListener("click", () => setOp(b.dataset.op)));
+document.querySelector("[data-act='ce']").addEventListener("click", ()=>{ 
+    S.x=N(1,"0",0); 
+    S.typing=false; 
+    showNumber(S.x); 
+    scheduleSave(); 
+});
+document.querySelector("[data-act='ac']").addEventListener("click", ()=>{ 
+    S = { x:N(1,"0",0), y:null, op:null, typing:false, repeatValue:null, repeatOp:null, history:"", lastResult:null }; 
+    setHistory(""); 
+    showNumber(S.x); 
+    scheduleSave(); 
+});
+
+// Billentyűzet támogatás
+window.addEventListener("keydown",(e)=>{
+    if(e.key>='0'&&e.key<='9') inputDigit(e.key);
+    else if(e.key==='.'||e.key===',') inputDot();
+    else if(e.key==='+') setOp('add');
+    else if(e.key==='-') setOp('sub');
+    else if(e.key==='*') setOp('mul');
+    else if(e.key==='/') setOp('div');
+    else if(e.key==='!') document.getElementById("factBtn").click();
+    else if(e.key==='Enter' || e.key==='=') equals();
+    else if(e.key==='Backspace') back();
+    else if(e.key==='Escape') document.querySelector("[data-act='ac']").click();
+});
+
+// Kezdő érték beállítása (Init)
+const stateLoaded = loadState();
+
+if (!stateLoaded) {
+    S = { x:N(1,"0",0), y:null, op:null, typing:false, repeatValue:null, repeatOp:null, history:"", lastResult:null }; 
+    showNumber(S.x);
+} 
+
+// Az előzmények megjelenítése betöltéskor
+if (S.history) {
+    setHistory(S.history);
+} else {
+    setHistory(""); 
+}
+
+window.addEventListener("beforeunload", saveState);
+
+</script>
+</body>
+</html>
