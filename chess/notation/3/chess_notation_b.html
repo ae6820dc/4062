@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Chess Notation (Black's view)</title>
+<style>
+  :root{
+    --bg:#0f1420; --tile-on:#3ec7c2; --tile-off:#2a3550;
+    --ink:#e8eef8; --muted:#9fb3c8; --digit-ink:#e7f0ff; --gap:8px;
+  }
+  html,body{ height:100%; overflow:hidden; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1{ font-size: 16px; margin: 5px 0; font-weight: 600; }
+  
+  #frame {
+    display: flex; flex-direction: column; align-items: center;
+    width: 95vw; max-width: 600px; gap: 8px;
+  }
+
+  .hud {
+    width: 100%; display: grid; grid-template-columns: 1fr 1fr;
+    gap: 15px; font-size: 14px; padding: 5px 10px;
+    background: rgba(255,255,255,0.05); border-radius: 8px; box-sizing: border-box;
+  }
+  .row { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+  .value { 
+    flex: 1; overflow-x: auto; white-space: nowrap; 
+    border-bottom: 1px dashed rgba(231,240,255,0.2); 
+    font-weight: 700; color: var(--tile-on);
+  }
+  
+  canvas { 
+    display: block; background: #161b2a; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-radius: 4px;
+  }
+
+  .bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+    width: 100%; gap: 6px; margin-top: 5px;
+  }
+  
+  button {
+    border: none; border-radius: 4px;
+    background: var(--tile-off); color: var(--digit-ink);
+    font-weight: 700; font-size: 12px;
+    aspect-ratio: 1 / 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.1s, background 0.2s;
+  }
+  button:active { transform: scale(0.95); }
+  .btn-on { background: var(--tile-on)!important; color:#0a1320!important; }
+
+  @media (min-width: 600px) {
+    h1 { font-size: 20px; }
+    .hud { font-size: 18px; }
+    .bar { grid-template-columns: repeat(9, 1fr); }
+  }
+</style>
+</head>
+<body>
+<h1>Chess Notation (Black's view)</h1>
+<div id="frame">
+  <div class="hud" id="hud">
+    <div class="row">
+      <span class="label">Step:</span>
+      <div id="sValue" class="value">0</div>
+    </div>
+    <div class="row">
+      <span class="label">Score:</span>
+      <div id="mValue" class="value">0</div>
+    </div>
+  </div>
+  
+  <canvas id="stage"></canvas>
+  
+  <div class="bar" id="buttonContainer"></div>
+</div>
+
+<script>
+(() => {
+  const COLS = 8, ROWS = 8, TOTAL = 64, BOARD_COUNT = 65536;
+  const DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const canvas = document.getElementById('stage'), ctx = canvas.getContext('2d');
+  const grid = { size: 0, pad: 8, radius: 4 };
+  
+  let boardsState = [];
+  let activeButtons = Array(16).fill(false);
+  let viewIndex = 0;
+  let isAutoToggleActive = false;
+  let autoToggleInterval = null;
+  let currentPerm = Array.from({length: TOTAL}, (_, i) => i);
+  let permIndex = 0, fillPhase = true;
+
+  // EGYSÉGESÍTETT KULCS - Ugyanaz, amit a White view használ a szinkronhoz
+  const STORAGE_KEY = `chess_notation_shared_state_v57`;
+
+  // --- BigInt Engine ---
+  const strip = s => (s || '0').replace(/^(-?)0+(?=\d)/, '$1') || '0';
+  const addA = (a, b) => {
+    let r = '', c = 0, i = a.length-1, j = b.length-1;
+    while(i>=0 || j>=0 || c){
+      const x = i>=0 ? a.charCodeAt(i--)-48 : 0;
+      const y = j>=0 ? b.charCodeAt(j--)-48 : 0;
+      const s = x+y+c; r = (s%10)+r; c = (s/10)|0;
+    }
+    return strip(r);
+  };
+  const subA = (a, b) => {
+    let r = '', bo = 0, i = a.length-1, j = b.length-1;
+    while(i>=0){
+      let x = a.charCodeAt(i--)-48-bo, y = j>=0 ? b.charCodeAt(j--)-48 : 0;
+      if(x<y){ x+=10; bo=1; } else bo=0;
+      r = (x-y)+r;
+    }
+    return strip(r);
+  };
+  const addS = (A, B) => {
+    let sa = A[0]==='-'?-1:1, a = strip(A.replace(/^-/,''));
+    let sb = B[0]==='-'?-1:1, b = strip(B.replace(/^-/,''));
+    if(sa===sb) return (sa<0?'-':'')+addA(a,b);
+    let cmp = a.length>b.length?1:a.length<b.length?-1:a>b?1:a<b?-1:0;
+    if(cmp===0) return '0';
+    return (cmp>0?sa:sb)<0 ? '-'+(cmp>0?subA(a,b):subA(b,a)) : (cmp>0?subA(a,b):subA(b,a));
+  };
+
+  const btnContainer = document.getElementById('buttonContainer'), btns = [];
+  for(let i=0; i<16; i++){
+    const b = document.createElement('button'); b.textContent = 'N'+i;
+    b.onclick = () => press(i); btnContainer.appendChild(b); btns.push(b);
+  }
+  const sBtn = document.createElement('button'); sBtn.textContent = 'S';
+  sBtn.onclick = () => press(16); btnContainer.appendChild(sBtn); btns.push(sBtn);
+
+  function draw() {
+    const b = boardsState[viewIndex];
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const tOn = getComputedStyle(document.documentElement).getPropertyValue('--tile-on');
+    const tOff = getComputedStyle(document.documentElement).getPropertyValue('--tile-off');
+    const ink = getComputedStyle(document.documentElement).getPropertyValue('--digit-ink');
+
+    for(let r=0; r<8; r++){
+      for(let c=0; c<8; c++){
+        const x = c*(grid.size+grid.pad)+grid.pad, y = r*(grid.size+grid.pad)+grid.pad;
+        ctx.fillStyle = b.matrix[r][c] ? tOn : tOff;
+        ctx.beginPath(); ctx.roundRect(x,y,grid.size,grid.size,grid.radius); ctx.fill();
+        
+        // BLACK VIEW LOGIC: h8 az első (bal felső), a1 a jobb alsó
+        const file = String.fromCharCode(97 + (7 - c));
+        const rank = r + 1;
+        const label = file + rank;
+
+        ctx.fillStyle = b.matrix[r][c] ? "#0a1320" : ink;
+        ctx.font = `bold ${Math.floor(grid.size*0.35)}px Inter`;
+        ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(label, x+grid.size/2, y+grid.size/2);
+      }
+    }
+  }
+
+  function sync() {
+    const b = boardsState[viewIndex];
+    const elS = document.getElementById('sValue'), elM = document.getElementById('mValue');
+    elS.textContent = b.step; elM.textContent = b.score;
+    save();
+  }
+
+  function fitCanvas() {
+    const h1H = document.querySelector('h1').offsetHeight;
+    const hudH = document.getElementById('hud').offsetHeight;
+    const barH = btnContainer.offsetHeight;
+    const avW = window.innerWidth*0.95, avH = window.innerHeight - h1H - hudH - barH - 60;
+    
+    grid.size = Math.max(30, Math.min(Math.floor((avW-72)/8), Math.floor((avH-72)/8), 60));
+    const tW = 8*(grid.size+grid.pad)+grid.pad, tH = 8*(grid.size+grid.pad)+grid.pad;
+    
+    canvas.width = tW*DPR; canvas.height = tH*DPR;
+    canvas.style.width = tW+'px'; canvas.style.height = tH+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0); draw();
+  }
+
+  function press(idx) {
+    if(idx===16) {
+      isAutoToggleActive = !isAutoToggleActive;
+      if(isAutoToggleActive) autoToggleInterval = setInterval(step, 150);
+      else clearInterval(autoToggleInterval);
+    } else if(idx!==-1) {
+      activeButtons[idx] = !activeButtons[idx];
+      viewIndex = activeButtons.reduce((acc,curr,i) => acc + (curr ? Math.pow(2,i) : 0), 0);
+    }
+    btns.forEach((btn,i) => btn.className = (i===16?isAutoToggleActive:activeButtons[i])?'btn-on':'');
+    sync(); draw();
+  }
+
+  function step() {
+    const b = boardsState[viewIndex];
+    const r = Math.floor(currentPerm[permIndex]/8), c = currentPerm[permIndex]%8;
+    if(fillPhase && !b.matrix[r][c]) { b.matrix[r][c]=true; b.score=addS(b.score,"-1"); b.step=addA(b.step,"1"); }
+    else if(!fillPhase && b.matrix[r][c]) { b.matrix[r][c]=false; b.score=addS(b.score,"2"); b.step=addA(b.step,"1"); }
+    permIndex++; if(permIndex>=64){ permIndex=0; fillPhase=!fillPhase; }
+    sync(); draw();
+  }
+
+  function save() { 
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      viewIndex, 
+      activeButtons, 
+      boardsState: boardsState.slice(0,100)
+    })); 
+  }
+
+  canvas.onclick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const c = Math.floor((e.clientX-rect.left-grid.pad)/(grid.size+grid.pad));
+    const r = Math.floor((e.clientY-rect.top-grid.pad)/(grid.size+grid.pad));
+    if(r>=0 && r<8 && c>=0 && c<8) {
+      const b = boardsState[viewIndex]; b.matrix[r][c] = !b.matrix[r][c];
+      b.step = addA(b.step,"1"); b.score = addS(b.score, b.matrix[r][c]?"-1":"2");
+      sync(); draw();
+    }
+  };
+
+  const defB = () => ({matrix:Array.from({length:8},()=>Array(8).fill(false)), step:"0", score:"0"});
+  boardsState = Array.from({length:BOARD_COUNT}, defB);
+  
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){
+    try {
+      const d = JSON.parse(saved); 
+      viewIndex = d.viewIndex || 0; 
+      activeButtons = d.activeButtons || activeButtons;
+      if(d.boardsState) d.boardsState.forEach((s,i) => { if(boardsState[i]) boardsState[i]=s; });
+    } catch(e) { console.error("Load error", e); }
+  }
+
+  window.onresize = fitCanvas; 
+  fitCanvas(); 
+  press(-1);
+})();
+</script>
+</body>
+</html>
