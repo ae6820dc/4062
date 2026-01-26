@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Chess Notation (White's view) (7)</title>
+<style>
+  :root{
+    --bg:#0f1420; --tile-on:#3ec7c2; --tile-off:#2a3550;
+    --ink:#e8eef8; --muted:#9fb3c8; --digit-ink:#e7f0ff; --gap:10px;
+  }
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    display:flex; flex-direction:column; align-items:center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1{font-size:18px; font-weight:700; margin:10px 0 8px}
+  #frame{display:flex; flex-direction:column; align-items:center}
+  .hud{width:100%; box-sizing:border-box; display:flex; flex-direction:column; gap:6px; color:var(--muted); font-size:20px; padding:0 4px;}
+  .row{display:flex; align-items:baseline; gap:8px; min-width:0}
+  .row .label{white-space:nowrap}
+  .value{display:block; width:100%; overflow-x:auto; white-space:nowrap; padding-bottom:2px; border-bottom:1px dashed rgba(231,240,255,0.2);}  
+  canvas{display:block; position:relative}
+  .bar{width:100%; display:flex; justify-content:center; gap:var(--gap); flex-wrap:wrap}
+  button{
+    margin:12px 0 14px; padding:0; border:none; border-radius:0px;
+    background:var(--tile-off); color:var(--digit-ink); font-weight:700;
+    touch-action:manipulation; user-select:none;
+    width:64px; height:64px; min-width:unset; display:flex; align-items:center; justify-content:center;
+  }
+  .btn-on{ background:var(--tile-on)!important; color:#0a1320!important; }
+  @media (max-width:420px){ .hud{font-size:18px; gap:5px; padding:0 2px} h1{font-size:16px} }
+  .hud, .hud .label, .value .real { color: var(--ink); font-weight:700; }
+</style>
+</head>
+<body>
+<h1>Chess Notation (White's view) (7)</h1>
+<div id="frame">
+  <div class="hud" id="hud">
+    <div class="row">
+      <span class="label">Step:</span>
+      <div id="sValue" class="value" aria-label="Step counter"><span class="real">0</span></div>
+    </div>
+    <div class="row">
+      <span class="label">Score:</span>
+      <div id="mValue" class="value" aria-label="Score counter"><span class="real">0</span></div>
+    </div>
+  </div>
+  <canvas id="stage" aria-label="8×8 toggleable grid"></canvas>
+  <div class="bar">
+    <button id="n0" aria-label="N0" aria-pressed="false">N0</button>
+    <button id="n1" aria-label="N1" aria-pressed="false">N1</button>
+    <button id="n2" aria-label="N2" aria-pressed="false">N2</button>
+    <button id="n3" aria-label="N3" aria-pressed="false">N3</button>
+    <button id="n4" aria-label="N4" aria-pressed="false">N4</button>
+    <button id="n5" aria-label="N5" aria-pressed="false">N5</button>
+    <button id="n6" aria-label="N6" aria-pressed="false">N6</button>
+    <button id="n7" aria-label="N7" aria-pressed="false">N7</button>
+    <button id="autoToggle" aria-label="Auto Factorial Sequences" aria-pressed="false">S</button>
+  </div>
+</div>
+<script>
+(() => {
+  const COLS = 8, ROWS = 8; // 8 oszlop × 8 sor = 64 csempe  <-- MÓDOSÍTVÁS
+  const TOTAL = COLS * ROWS; // 64
+  const DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const COLORS = { BG: css('--bg'), ON: css('--tile-on'), OFF: css('--tile-off'), INK: css('--ink'), DIGIT_INK: css('--digit-ink') };
+  const grid = { cols: COLS, rows: ROWS, size: 0, pad: 10, radius: 0 };
+  
+  function emptyMatrix() { return Array.from({length: grid.rows}, () => Array(grid.cols).fill(false)); }
+  const defaultBoardState = () => ({ matrix: emptyMatrix(), step: "0", score: "0" });
+  let boardsState = Array.from({length: 256}, defaultBoardState);
+  let activeButtons = [false,false,false,false,false,false,false,false];
+  let viewIndex = 0;
+  let autoToggleInterval = null;
+  let isAutoToggleActive = false;
+
+  let currentCellIdx = 0;
+  let togglePhase = true; // true: turn on, false: turn off
+
+  const elM = document.getElementById('mValue');
+  const elS = document.getElementById('sValue');
+  const hud = document.getElementById('hud');
+  const frame = document.getElementById('frame');
+  const btns = [
+    document.getElementById('n0'), document.getElementById('n1'), document.getElementById('n2'), document.getElementById('n3'),
+    document.getElementById('n4'), document.getElementById('n5'), document.getElementById('n6'), document.getElementById('n7'),
+    document.getElementById('autoToggle')
+  ];
+
+  const STORAGE_KEY = `7_white_factseq_${COLS}x${ROWS}_combo256`;
+
+  // Big integer helpers (ugyanaz)
+  const stripZeros = s => (s || '0').replace(/^(-?)0+(?=\d)/, '$1') || '0';
+  const addAbs = (a, b) => {
+    a = stripZeros(a); b = stripZeros(b);
+    let res = '', carry = 0, i = a.length - 1, j = b.length - 1;
+    while (i >= 0 || j >= 0 || carry) {
+      const da = i >= 0 ? a.charCodeAt(i) - 48 : 0;
+      const db = j >= 0 ? b.charCodeAt(j) - 48 : 0;
+      const s = da + db + carry;
+      res = (s % 10) + res; carry = (s / 10) | 0; i--; j--;
+    }
+    return stripZeros(res);
+  };
+  const incUnsigned = A => addAbs(stripZeros(A), '1');
+  const halfUnsigned = A => {
+    A = stripZeros(A);
+    let res = '', carry = 0;
+    for (let i = 0; i < A.length; i++) {
+      const n = carry * 10 + (A.charCodeAt(i) - 48);
+      res += (n / 2 | 0);
+      carry = n % 2;
+    }
+    return stripZeros(res);
+  };
+  const addSigned = (A, B) => {
+    let sa = A[0] === '-' ? -1 : 1, a = stripZeros(A.replace(/^-/, ''));
+    let sb = B[0] === '-' ? -1 : 1, b = stripZeros(B.replace(/^-/, ''));
+    if (a === '0') return (sb < 0 ? '-' : '') + b;
+    if (b === '0') return (sa < 0 ? '-' : '') + a;
+    if (sa === sb) return (sa < 0 ? '-' : '') + addAbs(a, b);
+    let cmp = a.length > b.length ? 1 : a.length < b.length ? -1 : a > b ? 1 : a < b ? -1 : 0;
+    if (cmp === 0) return '0';
+    if (cmp > 0) return (sa < 0 ? '-' : '') + subAbs(a, b);
+    return (sb < 0 ? '-' : '') + subAbs(b, a);
+  };
+  const subAbs = (a, b) => {
+    a = stripZeros(a); b = stripZeros(b);
+    let res = '', borrow = 0, i = a.length - 1, j = b.length - 1;
+    while (i >= 0) {
+      let da = a.charCodeAt(i) - 48 - borrow;
+      const db = j >= 0 ? b.charCodeAt(j) - 48 : 0;
+      if (da < db) { da += 10; borrow = 1; } else borrow = 0;
+      res = (da - db) + res; i--; j--;
+    }
+    return stripZeros(res);
+  };
+
+  const isBoardEmpty = m => {
+    for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) if (m[r][c]) return false;
+    return true;
+  };
+
+  function processNextStep() {
+    const b = boardsState[viewIndex];
+    const r = Math.floor(currentCellIdx / COLS);
+    const c = currentCellIdx % COLS;
+
+    if (togglePhase) {
+      // Turn on
+      if (!b.matrix[r][c]) {
+        b.matrix[r][c] = true;
+        b.score = addSigned(b.score, "-1");
+        b.step = incUnsigned(b.step);
+      }
+      togglePhase = false; // Next step will turn off this tile
+    } else {
+      // Turn off
+      if (b.matrix[r][c]) {
+        b.matrix[r][c] = false;
+        b.score = addSigned(b.score, "2");
+        b.step = incUnsigned(b.step);
+      }
+      togglePhase = true; // Next step will turn on the next tile
+      currentCellIdx = (currentCellIdx + 1) % TOTAL; // Move to next tile
+    }
+
+    if (isBoardEmpty(b.matrix) && b.step !== "0") {
+      b.score = halfUnsigned(b.step);
+    }
+
+    syncHUD();
+    draw();
+  }
+
+  function autoProcess() {
+    if (isAutoToggleActive) processNextStep();
+  }
+
+  function startAutoToggle() {
+    if (autoToggleInterval) return;
+    isAutoToggleActive = true;
+    autoToggleInterval = setInterval(autoProcess, 100);
+  }
+
+  function stopAutoToggle() {
+    isAutoToggleActive = false;
+    if (autoToggleInterval) clearInterval(autoToggleInterval);
+    autoToggleInterval = null;
+  }
+
+  function toggleAutoMode() {
+    if (isAutoToggleActive) stopAutoToggle();
+    else startAutoToggle();
+    renderButtons();
+  }
+
+  function rr(x, y, w, h, r) { 
+    const a = Math.min(r, w/2, h/2);
+    ctx.beginPath(); ctx.moveTo(x + a, y); ctx.arcTo(x + w, y, x + w, y + h, a);
+    ctx.arcTo(x + w, y + h, x, y + h, a); ctx.arcTo(x, y + h, x, y, a); ctx.arcTo(x, y, x + w, y, a); ctx.closePath();
+  }
+  
+  function drawHex(cx, cy, txt, isOn) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.max(16, Math.floor(grid.size * 0.45)) + 'px Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial';
+    ctx.fillStyle = isOn ? '#0a1320' : COLORS.DIGIT_INK;
+    ctx.fillText(txt, cx, cy);
+  }
+  
+  function draw() {
+    const b = boardsState[viewIndex];
+    ctx.fillStyle = COLORS.BG;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let r = 0; r < grid.rows; r++) {
+      for (let c = 0; c < grid.cols; c++) {
+        const idx = r * grid.cols + c;
+        const hex = String.fromCharCode(65 + c) + (8 - r);
+        const x = c * (grid.size + grid.pad) + grid.pad;
+        const y = r * (grid.size + grid.pad) + grid.pad;
+        rr(x, y, grid.size, grid.size, grid.radius);
+        const on = b.matrix[r][c];
+        ctx.fillStyle = on ? COLORS.ON : COLORS.OFF;
+        ctx.fill(); 
+        drawHex(x + grid.size / 2, y + grid.size / 2, hex, on);
+      }
+    }
+  }
+  
+  function pointerXY(e) { 
+    const rect = canvas.getBoundingClientRect(); 
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left; 
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top; 
+    return {x, y}; 
+  }
+  
+  function toggleAt(x, y) {
+    for (let r = 0; r < grid.rows; r++) {
+      for (let c = 0; c < grid.cols; c++) {
+        const cx = c * (grid.size + grid.pad) + grid.pad;
+        const cy = r * (grid.size + grid.pad) + grid.pad;
+        if (x >= cx && x <= cx + grid.size && y >= cy && y <= cy + grid.size) { 
+          const b = boardsState[viewIndex];
+          const wasOn = b.matrix[r][c];
+          b.matrix[r][c] = !wasOn;
+          b.score = addSigned(b.score, wasOn ? "2" : "-1");
+          b.step = incUnsigned(b.step);
+          if (isBoardEmpty(b.matrix) && b.step !== "0") b.score = halfUnsigned(b.step);
+          syncHUD();
+          draw(); 
+          return; 
+        }
+      }
+    }
+  }
+
+  canvas.addEventListener('click', e => { const p = pointerXY(e); toggleAt(p.x, p.y); });
+  let touchMoved = false;
+  canvas.addEventListener('touchstart', () => touchMoved = false, {passive: true});
+  canvas.addEventListener('touchmove', () => touchMoved = true, {passive: true});
+  canvas.addEventListener('touchend', e => { if (!touchMoved) { const p = pointerXY(e); toggleAt(p.x, p.y); } }, {passive: true});
+
+  function renderButtons() { 
+    btns.forEach((btn, i) => {
+      const on = i === 8 ? isAutoToggleActive : activeButtons[i];
+      btn.classList.toggle('btn-on', on); 
+      btn.setAttribute('aria-pressed', String(on)); 
+      btn.style.background = on ? COLORS.ON : COLORS.OFF;
+      btn.style.color = on ? '#0a1320' : COLORS.DIGIT_INK;
+      if (i === 8) btn.textContent = 'S';
+    });
+  }
+  
+  function renderValue(el, v) {
+    el.innerHTML = '<span class="real">' + v + '</span>';
+    requestAnimationFrame(() => el.scrollLeft = el.scrollWidth);
+  }
+  
+  function syncHUD() { 
+    const b = boardsState[viewIndex];
+    renderValue(elM, b.score);
+    renderValue(elS, b.step);
+    saveState(); 
+  }
+  
+  function pressButton(index) {
+    if (index === 8) toggleAutoMode();
+    else {
+      activeButtons[index] = !activeButtons[index];
+      viewIndex = activeButtons.reduce((acc, val, i) => acc + (val ? (1 << i) : 0), 0);
+      renderButtons();
+      syncHUD();
+      draw();
+      saveState();
+    }
+  }
+  
+  btns.forEach((btn, i) => {
+    btn.addEventListener('click', e => { e.preventDefault(); pressButton(i); });
+    btn.addEventListener('touchend', e => { e.preventDefault(); pressButton(i); }, {passive: false});
+  });
+
+  function fitCanvas() {
+    const outer = 18;
+    const h1 = document.querySelector('h1');
+    const bar = document.querySelector('.bar');
+    const h1H = h1 ? h1.getBoundingClientRect().height : 0;
+    const hudH = hud.getBoundingClientRect().height;
+    const barH = bar ? bar.getBoundingClientRect().height : 0;
+    const safetyY = 18;
+    const maxW = Math.max(320, window.innerWidth - outer * 2);
+    const maxH = Math.max(260, window.innerHeight - (h1H + hudH + barH + safetyY + outer * 2));
+    grid.pad = Math.round(Math.max(10, Math.min(18, Math.min(maxW, maxH) * 0.03)));
+    const sizeFromW = Math.floor((maxW - (grid.pad * (grid.cols + 1))) / grid.cols);
+    const sizeFromH = Math.floor((maxH - (grid.pad * (grid.rows + 1))) / grid.rows);
+    const MAX_TILE = Math.min(90, Math.floor(window.innerWidth / 4));
+    grid.size = Math.min(MAX_TILE, Math.max(28, Math.min(sizeFromW, sizeFromH)));
+    const cssW = grid.cols * (grid.size + grid.pad) + grid.pad;
+    const cssH = grid.rows * (grid.size + grid.pad) + grid.pad;
+    frame.style.width = cssW + 'px';
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * DPR);
+    canvas.height = Math.round(cssH * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    document.documentElement.style.setProperty('--gap', grid.pad + 'px');
+    const tileFont = Math.max(16, Math.floor(grid.size * 0.45)) + 'px';
+    
+    // Gombok elrendezése - 2×4-es rács, majd alatta az S gomb
+    const barContainer = document.querySelector('.bar');
+    barContainer.style.flexDirection = 'column';
+    barContainer.style.alignItems = 'center';
+    barContainer.style.gap = '8px'; // Azonos gap minden sor között
+    
+    // Ha még nincsenek sorok, hozzuk létre őket
+    if (!barContainer.querySelector('.button-row')) {
+      // Első sor: N0-N3
+      const firstRow = document.createElement('div');
+      firstRow.className = 'button-row';
+      firstRow.style.display = 'flex';
+      firstRow.style.gap = '8px'; // Azonos gap a gombok között
+      firstRow.style.justifyContent = 'center';
+      
+      // Második sor: N4-N7
+      const secondRow = document.createElement('div');
+      secondRow.className = 'button-row';
+      secondRow.style.display = 'flex';
+      secondRow.style.gap = '8px'; // Azonos gap a gombok között
+      secondRow.style.justifyContent = 'center';
+      
+      // Harmadik sor: S gomb
+      const thirdRow = document.createElement('div');
+      thirdRow.className = 'button-row';
+      thirdRow.style.display = 'flex';
+      thirdRow.style.justifyContent = 'center';
+      thirdRow.style.gap = '8px'; // Konzisztens gap, bár csak egy gomb van
+      
+      // Gombok referenciái
+      const btnN0 = document.getElementById('n0');
+      const btnN1 = document.getElementById('n1');
+      const btnN2 = document.getElementById('n2');
+      const btnN3 = document.getElementById('n3');
+      const btnN4 = document.getElementById('n4');
+      const btnN5 = document.getElementById('n5');
+      const btnN6 = document.getElementById('n6');
+      const btnN7 = document.getElementById('n7');
+      const btnS = document.getElementById('autoToggle');
+      
+      // Ürítjük a bar containert
+      while (barContainer.firstChild) {
+        barContainer.removeChild(barContainer.firstChild);
+      }
+      
+      // Hozzáadjuk a sorokat
+      barContainer.appendChild(firstRow);
+      barContainer.appendChild(secondRow);
+      barContainer.appendChild(thirdRow);
+      
+      // Gombok hozzáadása a sorokhoz
+      firstRow.appendChild(btnN0);
+      firstRow.appendChild(btnN1);
+      firstRow.appendChild(btnN2);
+      firstRow.appendChild(btnN3);
+      
+      secondRow.appendChild(btnN4);
+      secondRow.appendChild(btnN5);
+      secondRow.appendChild(btnN6);
+      secondRow.appendChild(btnN7);
+      
+      thirdRow.appendChild(btnS);
+    }
+    
+    // Gombok stílusának beállítása
+    const buttonRows = barContainer.querySelectorAll('.button-row');
+    buttonRows.forEach(row => {
+      const buttons = row.querySelectorAll('button');
+      buttons.forEach(btn => {
+        btn.style.width = Math.min(grid.size * 1.1, 60) + 'px';
+        btn.style.height = Math.min(grid.size * 1.1, 60) + 'px';
+        btn.style.fontSize = tileFont;
+        btn.style.margin = '0';
+      });
+    });
+    
+    draw();
+  }
+
+  function saveState() { 
+    try { 
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        boardsState, 
+        activeButtons, 
+        viewIndex,
+        currentCellIdx,
+        togglePhase
+      }));
+    } catch (e) {} 
+  }
+  
+  function loadState() {
+    try {
+      const s = localStorage.getItem(STORAGE_KEY);
+      if (s) {
+        const st = JSON.parse(s);
+        if (st.boardsState && Array.isArray(st.boardsState) && st.boardsState.length === 256) {
+          boardsState = st.boardsState.map(b => {
+            if (!b || !b.matrix) return defaultBoardState();
+            b.step = b.step || "0";
+            b.score = b.score || "0";
+            return b;
+          });
+          activeButtons = (st.activeButtons || [false,false,false,false,false,false,false,false]).slice(0,8);
+          viewIndex = Math.max(0, Math.min(255, st.viewIndex || 0));
+          if (typeof st.currentCellIdx === 'number') currentCellIdx = st.currentCellIdx;
+          if (typeof st.togglePhase === 'boolean') togglePhase = st.togglePhase;
+          return true;
+        }
+      }
+    } catch (e) { localStorage.removeItem(STORAGE_KEY); }
+    return false;
+  }
+
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', fitCanvas);
+
+  if (!loadState()) {
+    boardsState = Array.from({length: 256}, defaultBoardState);
+  }
+
+  renderButtons();
+  syncHUD();
+  draw();
+  fitCanvas();
+})();
+</script>
+</body>
+</html>
