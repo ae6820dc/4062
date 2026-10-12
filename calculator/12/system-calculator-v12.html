@@ -101,10 +101,30 @@
     button.export-btn { background: var(--export-bg); color: var(--export-text); }
     .hex-only { display: none; }
   </style>
+<script>
+// Legacy storage migration: copy once, retain the original, and verify the copy.
+(() => {
+  const legacyKeys = [["systemCalc", "878934EB83D58760"]];
+  for (const [oldKey, newKey] of legacyKeys) {
+    try {
+      if (localStorage.getItem(newKey) !== null) continue;
+      const saved = localStorage.getItem(oldKey);
+      if (saved === null) continue;
+      localStorage.setItem(newKey, saved);
+      if (localStorage.getItem(newKey) !== saved) {
+        throw new Error('Storage migration verification failed');
+      }
+    } catch (error) {
+      console.warn('Could not migrate legacy calculator data:', error);
+    }
+  }
+})();
+</script>
 </head>
 <body data-theme="matrix">
 
 <div class="calculator">
+  <div style="font-size:12px;line-height:1.4;margin-bottom:6px;overflow-wrap:anywhere">Program ID : A74717F79718960B</div>
   <div class="mode" id="mode">System: DEC</div>
   <div class="display" id="display">0</div>
   <div class="buttons">
@@ -168,7 +188,7 @@
   }
 
   function loadState() {
-    const saved = JSON.parse(localStorage.getItem('systemCalc') || '{}');
+    const saved = JSON.parse(localStorage.getItem('878934EB83D58760') || '{}');
     mode = saved.mode || 'DEC';
     internalExpr = saved.expr || '0';
     lastResult = saved.result || '';
@@ -183,7 +203,7 @@
 
   function saveState() {
     const state = { mode, expr: internalExpr, result: lastResult, op: lastOperator, history, theme: themes[currentTheme] };
-    localStorage.setItem('systemCalc', JSON.stringify(state));
+    localStorage.setItem('878934EB83D58760', JSON.stringify(state));
   }
 
   function appendToDisplay(value) {

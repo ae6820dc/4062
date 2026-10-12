@@ -42,9 +42,29 @@ button { padding: 15px; font-size: 1.2em; border: none; border-radius: 5px; curs
 .save { background-color: #34c759; color: white; }
 .settings { margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.9em; }
 </style>
+<script>
+// Legacy storage migration: copy once, retain the original, and verify the copy.
+(() => {
+  const legacyKeys = [["BPCv2_CHAINED_STATE", "69296E82ECEFCA11"]];
+  for (const [oldKey, newKey] of legacyKeys) {
+    try {
+      if (localStorage.getItem(newKey) !== null) continue;
+      const saved = localStorage.getItem(oldKey);
+      if (saved === null) continue;
+      localStorage.setItem(newKey, saved);
+      if (localStorage.getItem(newKey) !== saved) {
+        throw new Error('Storage migration verification failed');
+      }
+    } catch (error) {
+      console.warn('Could not migrate legacy calculator data:', error);
+    }
+  }
+})();
+</script>
 </head>
 <body>
 <div class="calculator">
+  <div style="font-size:12px;line-height:1.4;margin-bottom:6px;overflow-wrap:anywhere">Program ID : A01A1B49325CC6C0</div>
     
     <div id="history-display"></div> <div id="display">0</div>
     
@@ -89,7 +109,7 @@ button { padding: 15px; font-size: 1.2em; border: none; border-radius: 5px; curs
 "use strict";
 
 /* ===== Persistence and Helpers ===== */
-const STORE_KEY = "BPCv2_CHAINED_STATE";
+const STORE_KEY = "69296E82ECEFCA11";
 let saveTimer = null;
 
 function saveTextFile(filename, text, mimeType = 'text/plain'){

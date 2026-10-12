@@ -77,9 +77,28 @@
     text-align: right;
   }
 </style>
+<script>
+// Legacy storage migration: copy once, retain the original, and verify the copy.
+(() => {
+  const legacyKeys = [["multi_table_calc_v2_big_prec", "81BB5E7565A9A32F"]];
+  for (const [oldKey, newKey] of legacyKeys) {
+    try {
+      if (localStorage.getItem(newKey) !== null) continue;
+      const saved = localStorage.getItem(oldKey);
+      if (saved === null) continue;
+      localStorage.setItem(newKey, saved);
+      if (localStorage.getItem(newKey) !== saved) {
+        throw new Error('Storage migration verification failed');
+      }
+    } catch (error) {
+      console.warn('Could not migrate legacy calculator data:', error);
+    }
+  }
+})();
+</script>
 </head>
 <body>
-<h1>Multi-Table Calculator (16 Tables)</h1>
+<h1>Program ID : 73D9FF2853ECB129</h1>
 <div id="frame">
   <div id="calculatorDisplay" class="display">0</div>
   
@@ -259,7 +278,7 @@ function div(a, b, p) {
       DIGIT_INK:css('--digit-ink'), 
       ON_INK: 'rgb(0, 0, 0)'
   };
-  const STORAGE_KEY=`multi_table_calc_v2_big_prec`;
+  const STORAGE_KEY=`81BB5E7565A9A32F`;
 
   // --- Állapotkezelés ---
   // A displayValue-nak BÁRMIKOR egy string-ként reprezentált Big Number-nek kell lennie.

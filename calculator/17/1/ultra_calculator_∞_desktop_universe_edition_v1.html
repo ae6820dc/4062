@@ -99,6 +99,25 @@
     #app{grid-template-columns: 320px 1fr 380px}
   }
 </style>
+<script>
+// Legacy storage migration: copy once, retain the original, and verify the copy.
+(() => {
+  const legacyKeys = [["activeTab", "744360379D1EF8F7"], ["lastExpr", "1C4584D84DBB2CE8"]];
+  for (const [oldKey, newKey] of legacyKeys) {
+    try {
+      if (localStorage.getItem(newKey) !== null) continue;
+      const saved = localStorage.getItem(oldKey);
+      if (saved === null) continue;
+      localStorage.setItem(newKey, saved);
+      if (localStorage.getItem(newKey) !== saved) {
+        throw new Error('Storage migration verification failed');
+      }
+    } catch (error) {
+      console.warn('Could not migrate legacy calculator data:', error);
+    }
+  }
+})();
+</script>
 </head>
 <body>
   <div id="intro">
@@ -117,7 +136,7 @@
         <div class="logo" aria-hidden="true"></div>
         <div>
           <div class="title">Ultra Calculator ∞</div>
-          <div class="sub">Desktop Universe Edition (v1)</div>
+          <div class="sub">Program ID : 159233C95632D02F</div>
         </div>
       </div>
       <div class="toolbar">
@@ -307,10 +326,10 @@
       const t = b.dataset.target;
       $$('.workspace').forEach(w=>w.classList.remove('active'));
       $('#'+t).classList.add('active');
-      store('activeTab', t);
+      store('744360379D1EF8F7', t);
     });
   });
-  const savedTab = load('activeTab','core');
+  const savedTab = load('744360379D1EF8F7','core');
   document.querySelector(`.tab[data-target="${savedTab}"]`)?.click();
 
   // Toast
@@ -619,8 +638,8 @@
   $('#clearAll').addEventListener('click', ()=>{ ['display','mathOut','astroOut','chaosOut','convOut'].forEach(id=>{ const el = document.getElementById(id); if(el?.value!==undefined) el.value=''; else if(el) el.textContent=''; }); stackEl.innerHTML=''; toast('Cleared'); });
 
   // Persist last expression
-  display.textContent = load('lastExpr','');
-  display.addEventListener('input', ()=>{ store('lastExpr', display.textContent); });
+  display.textContent = load('1C4584D84DBB2CE8','');
+  display.addEventListener('input', ()=>{ store('1C4584D84DBB2CE8', display.textContent); });
 
   // Keyboard Enter evaluates
   display.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); evaluate(); }});
