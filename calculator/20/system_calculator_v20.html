@@ -304,7 +304,7 @@
     const historyHTML = history.map(line => `<div style="margin:8px 0;padding:12px;background:#111;color:#0f0;border-radius:8px;font-family:monospace;">${line}</div>`).join('');
     const finalResult = lastResult || internalExpr;
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Calc Result - ${timestamp}</title><style>body{font-family:sans-serif;background:#111;color:#0f0;padding:30px;text-align:center;}h1{color:#0f0;}.result{font-size:2em;background:#000;padding:20px;border-radius:12px;margin:30px auto;max-width:800px;word-break:break-all;}</style></head><body><h1>System Calculator Result</h1><p>${timestamp}</p><div>${historyHTML || '<em>No operations</em>'}</div><div class="result">${finalResult}</div></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Calc Result - ${timestamp}</title><style>body{font-family:sans-serif;background:#111;color:#0f0;padding:30px;text-align:center;}h1{color:#0f0;}.result{font-size:2em;background:#000;padding:20px;border-radius:12px;margin:30px auto;max-width:800px;word-break:break-all;}</style></head><body><h1>System Calculator Result</h1><div style="font-size:16px;font-weight:bold;margin:12px 0;overflow-wrap:anywhere">Program ID : D9E4ACC7E4586B9A</div><p>${timestamp}</p><div>${historyHTML || '<em>No operations</em>'}</div><div class="result">${finalResult}</div></body></html>`;
 
     const blob = new Blob([html], {type: 'text/html'});
     const url = URL.createObjectURL(blob);
