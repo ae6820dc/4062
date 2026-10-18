@@ -61,6 +61,9 @@ button:hover { opacity: 0.9; }
   margin-bottom: 15px;
 }
 #board { 
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   display: grid; 
   grid-template-columns: repeat(8, var(--cell)); 
   grid-template-rows: repeat(8, var(--cell)); 
@@ -78,6 +81,8 @@ button:hover { opacity: 0.9; }
   text-shadow: 0 0 5px rgba(0,0,0,1), 2px 2px 3px rgba(0,0,0,0.9); 
   filter: drop-shadow(0 0 2px rgba(255,255,255,0.3)); 
 }
+.drag-source { color: transparent !important; text-shadow: none; }
+.drag-piece { position: fixed; transform: translate(-50%, -50%); pointer-events: none; z-index: 1000; background: transparent; cursor: grabbing; }
 .light { background: var(--sq-light); }
 .dark { background: var(--sq-dark); }
 .sel { outline: 3px solid var(--accent); outline-offset: -3px; }
@@ -160,6 +165,7 @@ if (shouldDraw) draw();
 }
 
 function draw() {
+clearDrag();
 const bd = document.getElementById('board');
 bd.innerHTML = '';
 const rows = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
@@ -167,6 +173,8 @@ const cols = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
 for(let r of rows) for(let c of cols) {
 const sq = document.createElement('div');
 sq.className = 'sq ' + ((r+c)%2?'dark':'light');
+sq.dataset.r = r;
+sq.dataset.c = c;
 sq.onclick = ()=>click(r,c);
 const p = b[r][c];
 if(p) {
@@ -183,6 +191,79 @@ bd.appendChild(sq);
 document.getElementById('status').textContent = over ? over : (turn==='w'?'White':'Black');
 updateInfoDisplay();
 }
+
+// Pointer input extends click input; all drops use the existing legal moves.
+let drag = null, suppressClickUntil = 0;
+const boardInput = document.getElementById('board');
+function clearDrag() {
+const current = drag;
+drag = null;
+if(!current) return;
+if(current.ghost) current.ghost.remove();
+if(current.source) current.source.classList.remove('drag-source');
+if(boardInput.hasPointerCapture(current.id)) boardInput.releasePointerCapture(current.id);
+}
+boardInput.addEventListener('click', event=>{
+if(Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); }
+}, true);
+boardInput.addEventListener('dragstart', event=>event.preventDefault());
+boardInput.addEventListener('pointerdown', event=>{
+if(drag || !event.isPrimary || event.button!==0) return;
+suppressClickUntil = 0;
+const square = event.target.closest('.sq');
+if(!square || over || pending) return;
+const r = Number(square.dataset.r), c = Number(square.dataset.c);
+if(!b[r][c] || b[r][c].c!==turn) return;
+drag = {id:event.pointerId, r, c, x:event.clientX, y:event.clientY};
+});
+window.addEventListener('pointermove', event=>{
+if(!drag || event.pointerId!==drag.id) return;
+const current = drag;
+if(!current.ghost) {
+if(Math.hypot(event.clientX-current.x, event.clientY-current.y)<6) return;
+// Select only once a drag starts, so ordinary clicks retain their behavior.
+drag = null;
+sel = {r:current.r,c:current.c};
+moves = getLegal(current.r,current.c);
+draw();
+drag = current;
+boardInput.setPointerCapture(event.pointerId);
+current.source = boardInput.querySelector(`[data-r="${current.r}"][data-c="${current.c}"]`);
+current.ghost = current.source.cloneNode(true);
+current.ghost.className = 'sq drag-piece';
+current.ghost.removeAttribute('data-r');
+current.ghost.removeAttribute('data-c');
+current.ghost.setAttribute('aria-hidden','true');
+current.ghost.style.width = current.source.getBoundingClientRect().width+'px';
+current.ghost.style.height = current.source.getBoundingClientRect().height+'px';
+document.body.appendChild(current.ghost);
+current.source.classList.add('drag-source');
+}
+event.preventDefault();
+current.ghost.style.left = event.clientX+'px';
+current.ghost.style.top = event.clientY+'px';
+}, {passive:false});
+window.addEventListener('pointerup', event=>{
+if(!drag || event.pointerId!==drag.id) return;
+const current = drag;
+const target = document.elementFromPoint(event.clientX,event.clientY)?.closest('#board .sq');
+const move = current.ghost && target && moves.find(m=>m.tr===Number(target.dataset.r)&&m.tc===Number(target.dataset.c));
+if(current.ghost) {
+event.preventDefault();
+suppressClickUntil = Date.now()+500;
+}
+clearDrag();
+if(current.ghost) { if(move) doMove(move); else draw(); }
+});
+function cancelDrag() {
+if(!drag) return;
+const wasDragging = !!drag.ghost;
+clearDrag();
+if(wasDragging) { suppressClickUntil = Date.now()+500; draw(); }
+}
+boardInput.addEventListener('pointercancel', cancelDrag);
+boardInput.addEventListener('lostpointercapture', cancelDrag);
+window.addEventListener('blur', cancelDrag);
 
 function click(r,c) {
 if(over) return;
