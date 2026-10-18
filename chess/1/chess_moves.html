@@ -573,11 +573,12 @@
   <style>
     body{font-family:monospace; background:#171a2b; color:#e7e9f6; padding:20px; word-wrap:break-word; font-size: 14px;} 
     h1, p {margin-bottom: 20px;}
-    .moves {border: 1px solid #444; padding: 15px; background: #0f1220; display: block; line-height: 1.6;}
+    .moves {font-size: 200%; border: 1px solid #444; padding: 15px; background: #0f1220; display: block; line-height: 1.6;}
   </style>
 </head>
 <body>
   <h1>Generated Chess Moves - File ${fileIndex}</h1>
+  <p>Program ID: <code>dd1c92097b6f9ae0</code></p>
   <p>Total moves: ${total.toLocaleString(currentLocale)}</p>
   <div class="moves">${moves_string}</div>
 </body>
