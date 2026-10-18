@@ -16,7 +16,8 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: Arial, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
-body > header { transform: translateY(-20px); }
+/* Keep the header's layout space so the controls and board stay in place. */
+body > header { transform: translateY(-12px); text-align: center; }
 .game-header {
   display: flex;
   justify-content: space-between;
