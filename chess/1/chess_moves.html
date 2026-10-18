@@ -564,6 +564,8 @@
     // Eredmény: Egyetlen string, szóközökkel elválasztva
     const moves_string = moves_with_index.join(' '); 
 
+    const unixTimestamp = Math.floor(Date.now() / 1000);
+
     const content = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -577,8 +579,9 @@
   </style>
 </head>
 <body>
-  <h1>Generated Chess Moves - File ${fileIndex}</h1>
   <p>Program ID: <code>dd1c92097b6f9ae0</code></p>
+  <p>Unix timestamp (seconds): <code>${unixTimestamp}</code></p>
+  <h1>Generated Chess Moves - File ${fileIndex}</h1>
   <p>Total moves: ${total.toLocaleString(currentLocale)}</p>
   <div class="moves">${moves_string}</div>
 </body>
