@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="hu" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chess Moves</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ctext%20x%3D%2232%22%20y%3D%2250%22%20text-anchor%3D%22middle%22%20font-size%3D%2252%22%3E%E2%99%9F%EF%B8%8F%3C%2Ftext%3E%3C%2Fsvg%3E" />
+  <style>
+    :root{
+      --bg:#0f1220; --card:#171a2b; --ink:#e7e9f6; --muted:#aab1d6; --accent:#7c5cff; --accent-2:#00e5a8;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--ink);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      display:grid; place-items:center; padding:24px;
+    }
+    .app{width:min(980px,100%);}
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap}
+    h1{font-size:22px; margin:0; letter-spacing:.3px}
+    .card{background:var(--card); border:1px solid #242842; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+    label{font-size:12px; color:var(--muted); display:block; margin-bottom:6px}
+    input[type="number"], input[type="text"], select{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid #2a2e4b;
+      background:#0f1220; color:var(--ink); outline:none;
+    }
+    .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .btn{appearance:none; border:1px solid #2a2e4b; background:var(--accent); color:white; font-weight:700;
+      padding:10px 14px; border-radius:12px; cursor:pointer; transition:.15s transform ease, .15s filter ease}
+    .btn.secondary{background:#232747}
+    .btn.ghost{background:transparent}
+    .btn:active{transform:translateY(1px)}
+    .kpis{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px}
+    .kpi{background:#10142a; border:1px solid #242842; border-radius:12px; padding:10px 12px; min-width:120px}
+    .kpi b{display:block; font-size:18px}
+    .progress{height:10px; background:#10142a; border:1px solid #242842; border-radius:999px; overflow:hidden}
+    .bar{height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .12s linear}
+    .log{max-height:240px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color:#d5d9ff;
+      background:#0e1122; border:1px dashed #2a2e4b; border-radius:12px; padding:12px;}
+    a.dl{color:#b9c1ff; text-decoration:none; border-bottom:1px dotted #b9c1ff}
+    .spacer{flex:1}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1 id="title">♟️ Chess Moves</h1>
+      <small style="color:var(--muted)">Program ID: <code>0135208E74093580</code></small>
+      <div class="row">
+        <label for="lang" id="langLabel">Nyelv</label>
+        <select id="lang">
+          <option value="hu">Magyar</option>
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="it">Italiano</option>
+          <option value="ru">Русский</option>
+          <option value="ja">日本語</option>
+          <option value="zh">中文</option>
+          <option value="ar">العربية</option>
+        </select>
+        <div class="spacer"></div>
+        <div class="row">
+          <button class="btn ghost" id="presetFast">Preset: 100k × 1</button>
+          <button class="btn ghost" id="presetHeavy">Preset: 1M × 1</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="card" aria-label="Beállítások">
+      <div class="grid">
+        <div>
+          <label id="lblMovesPerFile">Mozgások száma / fájl</label>
+          <input id="movesPerFile" type="number" min="1" step="1" value="100000" />
+        </div>
+        <div>
+          <label id="lblFileCount">Fájlok száma</label>
+          <input id="fileCount" type="number" min="1" step="1" value="1" />
+        </div>
+        <div>
+          <label id="lblStartIndex">Kezdő sorszám</label>
+          <input id="startIndex" type="number" min="1" step="1" value="1" />
+        </div>
+        <div>
+          <label id="lblNamePattern">Fájlnév minta</label>
+          <input id="namePattern" type="text" value="chess_moves_{n}.html" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label style="display:flex; align-items:center; gap:8px"><input id="castling" type="checkbox" checked /> <span id="lblCastling">Sáncolás (1%)</span></label>
+        <label style="display:flex; align-items:center; gap:8px"><input id="enpassant" type="checkbox" checked /> <span id="lblEnPassant">En passant (5%)</span></label>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button id="startBtn" class="btn">Indítás</button>
+        <button id="stopBtn" class="btn secondary">Leállítás</button>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><span id="kpiMovesLabel">Összesen előállított lépés</span><b id="kpiMoves">0</b></div>
+        <div class="kpi"><span id="kpiFilesLabel">Elkészült fájlok</span><b id="kpiFiles">0</b></div>
+      </div>
+      <div class="progress" style="margin-top:10px"><div class="bar" id="bar"></div></div>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Letöltések és napló">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <h2 id="downloadsTitle" style="font-size:16px; margin:0">Letöltések</h2>
+        <small id="downloadsHint" style="color:var(--muted)">A kész fájlok itt jelennek meg</small>
+      </div>
+      <div id="downloads" class="row" style="margin-top:8px; flex-wrap:wrap"></div>
+      <div class="log" id="log" style="margin-top:12px"></div>
+    </section>
+  </div>
+
+<script>
+(()=>{
+  // --- i18n dictionary ---
+  const I18N = {
+    en: {
+      _locale: 'en-US', _dir: 'ltr',
+      title: '♟️ Chess Moves',
+      lang: 'Language',
+      presetFast: 'Preset: 100k × 1',
+      presetHeavy: 'Preset: 1M × 1',
+      lblMovesPerFile: 'Moves per file',
+      lblFileCount: 'Number of files',
+      lblStartIndex: 'Starting index',
+      lblNamePattern: 'Filename pattern',
+      lblCastling: 'Castling (1%)',
+      lblEnPassant: 'En passant (5%)',
+      startBtn: 'Start',
+      stopBtn: 'Stop',
+      kpiMovesLabel: 'Total moves generated',
+      kpiFilesLabel: 'Files completed',
+      downloadsTitle: 'Downloads',
+      downloadsHint: 'Finished files appear here',
+      logStart: 'Generation started:',
+      logDone: 'Completed:',
+      logStopped: 'Process aborted.'
+    },
+    hu: {
+      _locale: 'hu-HU', _dir: 'ltr',
+      title: '♟️ Chess Moves',
+      lang: 'Nyelv',
+      presetFast: 'Preset: 100k × 1',
+      presetHeavy: 'Preset: 1M × 1',
+      lblMovesPerFile: 'Mozgások száma / fájl',
+      lblFileCount: 'Fájlok száma',
+      lblStartIndex: 'Kezdő sorszám',
+      lblNamePattern: 'Fájlnév minta',
+      lblCastling: 'Sáncolás (1%)',
+      lblEnPassant: 'En passant (5%)',
+      startBtn: 'Indítás',
+      stopBtn: 'Leállítás',
+      kpiMovesLabel: 'Összesen előállított lépés',
+      kpiFilesLabel: 'Elkészült fájlok',
+      downloadsTitle: 'Letöltések',
+      downloadsHint: 'A kész fájlok itt jelennek meg',
+      logStart: 'Generálás indul:',
+      logDone: 'Elkészült:',
+      logStopped: 'Folyamat megszakítva.'
+    },
+    de: {
+      _locale: 'de-DE', _dir: 'ltr',
+      title: '♟️ Schachzüge',
+      lang: 'Sprache',
+      presetFast: 'Voreinstellung: 100k × 1',
+      presetHeavy: 'Voreinstellung: 1M × 1',
+      lblMovesPerFile: 'Züge pro Datei',
+      lblFileCount: 'Anzahl der Dateien',
+      lblStartIndex: 'Startindex',
+      lblNamePattern: 'Dateinamensmuster',
+      lblCastling: 'Rochade (1 %)',
+      lblEnPassant: 'En passant (5 %)',
+      startBtn: 'Start',
+      stopBtn: 'Stopp',
+      kpiMovesLabel: 'Insgesamt erzeugte Züge',
+      kpiFilesLabel: 'Fertige Dateien',
+      downloadsTitle: 'Downloads',
+      downloadsHint: 'Fertige Dateien erscheinen hier',
+      logStart: 'Generierung gestartet:',
+      logDone: 'Fertig:',
+      logStopped: 'Vorgang abgebrochen.'
+    },
+    fr: {
+      _locale: 'fr-FR', _dir: 'ltr',
+      title: '♟️ Coups d’échecs',
+      lang: 'Langue',
+      presetFast: 'Préréglage : 100k × 1',
+      presetHeavy: 'Préréglage : 1M × 1',
+      lblMovesPerFile: 'Coups par fichier',
+      lblFileCount: 'Nombre de fichiers',
+      lblStartIndex: 'Index de départ',
+      lblNamePattern: 'Modèle de nom de fichier',
+      lblCastling: 'Roque (1 %)',
+      lblEnPassant: 'Prise en passant (5 %)',
+      startBtn: 'Démarrer',
+      stopBtn: 'Arrêter',
+      kpiMovesLabel: 'Total des coups générés',
+      kpiFilesLabel: 'Fichiers terminés',
+      downloadsTitle: 'Téléchargements',
+      downloadsHint: 'Les fichiers terminés apparaîtront ici',
+      logStart: 'Génération lancée :',
+      logDone: 'Terminé :',
+      logStopped: 'Processus interrompu.'
+    },
+    es: {
+      _locale: 'es-ES', _dir: 'ltr',
+      title: '♟️ Movimientos de ajedrez',
+      lang: 'Idioma',
+      presetFast: 'Preajuste: 100k × 1',
+      presetHeavy: 'Preajuste: 1M × 1',
+      lblMovesPerFile: 'Movimientos por archivo',
+      lblFileCount: 'Número de archivos',
+      lblStartIndex: 'Índice inicial',
+      lblNamePattern: 'Patrón de nombre de archivo',
+      lblCastling: 'Enroque (1 %)',
+      lblEnPassant: 'Captura al paso (5 %)',
+      startBtn: 'Iniciar',
+      stopBtn: 'Detener',
+      kpiMovesLabel: 'Total de movimientos generados',
+      kpiFilesLabel: 'Archivos completados',
+      downloadsTitle: 'Descargas',
+      downloadsHint: 'Los archivos terminados aparecerán aquí',
+      logStart: 'Generación iniciada:',
+      logDone: 'Completado:',
+      logStopped: 'Proceso cancelado.'
+    },
+    it: {
+      _locale: 'it-IT', _dir: 'ltr',
+      title: '♟️ Mosse degli scacchi',
+      lang: 'Lingua',
+      presetFast: 'Preimpostazione: 100k × 1',
+      presetHeavy: 'Preimpostazione: 1M × 1',
+      lblMovesPerFile: 'Mosse per file',
+      lblFileCount: 'Numero di file',
+      lblStartIndex: 'Indice iniziale',
+      lblNamePattern: 'Pattern del nome file',
+      lblCastling: 'Arrocco (1%)',
+      lblEnPassant: 'En passant (5%)',
+      startBtn: 'Avvia',
+      stopBtn: 'Arresta',
+      kpiMovesLabel: 'Mosse totali generate',
+      kpiFilesLabel: 'File completati',
+      downloadsTitle: 'Download',
+      downloadsHint: 'I file completati appariranno qui',
+      logStart: 'Generazione avviata:',
+      logDone: 'Completato:',
+      logStopped: 'Processo interrotto.'
+    },
+    ru: {
+      _locale: 'ru-RU', _dir: 'ltr',
+      title: '♟️ Шахматные ходы',
+      lang: 'Язык',
+      presetFast: 'Пресет: 100k × 1',
+      presetHeavy: 'Пресет: 1M × 1',
+      lblMovesPerFile: 'Ходов на файл',
+      lblFileCount: 'Количество файлов',
+      lblStartIndex: 'Начальный индекс',
+      lblNamePattern: 'Шаблон названия файла',
+      lblCastling: 'Рокировка (1%)',
+      lblEnPassant: 'Взятие на проходе (5%)',
+      startBtn: 'Старт',
+      stopBtn: 'Стоп',
+      kpiMovesLabel: 'Всего сгенерировано ходов',
+      kpiFilesLabel: 'Готовые файлы',
+      downloadsTitle: 'Загрузки',
+      downloadsHint: 'Готовые файлы появятся здесь',
+      logStart: 'Генерация начата:',
+      logDone: 'Готово:',
+      logStopped: 'Процесс остановлен.'
+    },
+    ja: {
+      _locale: 'ja-JP', _dir: 'ltr',
+      title: '♟️ チェスの手',
+      lang: '言語',
+      presetFast: 'プリセット: 100k × 1',
+      presetHeavy: 'プリセット: 1M × 1',
+      lblMovesPerFile: 'ファイルあたりの手数',
+      lblFileCount: 'ファイル数',
+      lblStartIndex: '開始インデックス',
+      lblNamePattern: 'ファイル名パターン',
+      lblCastling: 'キャスリング (1%)',
+      lblEnPassant: 'アンパッサン (5%)',
+      startBtn: '開始',
+      stopBtn: '停止',
+      kpiMovesLabel: '生成した手の合計',
+      kpiFilesLabel: '完了したファイル',
+      downloadsTitle: 'ダウンロード',
+      downloadsHint: '完了したファイルはここに表示されます',
+      logStart: '生成を開始:',
+      logDone: '完了:',
+      logStopped: '処理を中断しました。'
+    },
+    zh: {
+      _locale: 'zh-CN', _dir: 'ltr',
+      title: '♟️ 国际象棋走法',
+      lang: '语言',
+      presetFast: '预设：100k × 1',
+      presetHeavy: '预设：1M × 1',
+      lblMovesPerFile: '每个文件的步数',
+      lblFileCount: '文件数量',
+      lblStartIndex: '起始序号',
+      lblNamePattern: '文件名模式',
+      lblCastling: '王车易位 (1%)',
+      lblEnPassant: '吃过路兵 (5%)',
+      startBtn: '开始',
+      stopBtn: '停止',
+      kpiMovesLabel: '生成的总步数',
+      kpiFilesLabel: '已完成的文件',
+      downloadsTitle: '下载',
+      downloadsHint: '完成的文件会显示在这里',
+      logStart: '开始生成：',
+      logDone: '已完成：',
+      logStopped: '进程已中止。'
+    },
+    ar: {
+      _locale: 'ar-SA', _dir: 'rtl',
+      title: '♟️ حركات الشطرنج',
+      lang: 'اللغة',
+      presetFast: 'إعداد مسبق: 100k × 1',
+      presetHeavy: 'إعداد مسبق: 1M × 1',
+      lblMovesPerFile: 'عدد الحركات لكل ملف',
+      lblFileCount: 'عدد الملفات',
+      lblStartIndex: 'فهرس البدء',
+      lblNamePattern: 'نمط اسم الملف',
+      lblCastling: 'تحصين (1%)',
+      lblEnPassant: 'الأخذ في الممر (5%)',
+      startBtn: 'ابدأ',
+      stopBtn: 'إيقاف',
+      kpiMovesLabel: 'إجمالي الحركات المُولَّدة',
+      kpiFilesLabel: 'الملفات المُكتملة',
+      downloadsTitle: 'التنزيلات',
+      downloadsHint: 'ستظهر الملفات المكتملة هنا',
+      logStart: 'بدء التوليد:',
+      logDone: 'اكتمل:',
+      logStopped: 'تم إيقاف العملية.'
+    }
+  };
+
+  const el = id => document.getElementById(id);
+  // --- ÚJ FUNKCIÓ: Beállítások mentése/betöltése ---
+  const STORAGE_KEY = 'A4EB288996AD8E0C';
+
+
+  function saveSettings() {
+      const settings = {
+          lang: el('lang').value,
+          movesPerFile: el('movesPerFile').value,
+          fileCount: el('fileCount').value,
+          startIndex: el('startIndex').value,
+          namePattern: el('namePattern').value,
+          castling: el('castling').checked,
+          enpassant: el('enpassant').checked,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+
+  function loadSettings() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+          const settings = JSON.parse(stored);
+          
+          el('lang').value = settings.lang || 'hu';
+          el('movesPerFile').value = settings.movesPerFile || 100000;
+          el('fileCount').value = settings.fileCount || 1;
+          el('startIndex').value = settings.startIndex || 1;
+          el('namePattern').value = settings.namePattern || 'chess_moves_{n}.html';
+          el('castling').checked = settings.castling !== undefined ? settings.castling : true;
+          el('enpassant').checked = settings.enpassant !== undefined ? settings.enpassant : true;
+
+          applyLang(el('lang').value); // Betöltés után alkalmazza a nyelvet
+      } else {
+          // Ha nincs mentett adat, alapértelmezett nyelv alkalmazása (hu)
+          applyLang('hu');
+      }
+  }
+
+  // Eseményfigyelők hozzáadása a beállítások mentéséhez
+  function setupSettingListeners() {
+      ['lang', 'movesPerFile', 'fileCount', 'startIndex', 'namePattern'].forEach(id => {
+          el(id).addEventListener('change', saveSettings);
+      });
+      ['castling', 'enpassant'].forEach(id => {
+          el(id).addEventListener('click', saveSettings);
+      });
+  }
+
+  // --- /ÚJ FUNKCIÓ ---
+
+  function applyLang(code){
+    const t = I18N[code] || I18N.hu;
+    // set document language & direction
+    document.documentElement.lang = code;
+    document.documentElement.dir = t._dir || 'ltr';
+
+    // header
+    el('title').textContent = t.title;
+    el('langLabel').textContent = t.lang;
+    el('presetFast').textContent = t.presetFast;
+    el('presetHeavy').textContent = t.presetHeavy;
+
+    // form labels
+    el('lblMovesPerFile').textContent = t.lblMovesPerFile;
+    el('lblFileCount').textContent = t.lblFileCount;
+    el('lblStartIndex').textContent = t.lblStartIndex;
+    el('lblNamePattern').textContent = t.lblNamePattern;
+    el('lblCastling').textContent = t.lblCastling;
+    el('lblEnPassant').textContent = t.lblEnPassant;
+
+    // buttons
+    el('startBtn').textContent = t.startBtn;
+    el('stopBtn').textContent = t.stopBtn;
+
+    // KPIs & section
+    el('kpiMovesLabel').textContent = t.kpiMovesLabel;
+    el('kpiFilesLabel').textContent = t.kpiFilesLabel;
+    el('downloadsTitle').textContent = t.downloadsTitle;
+    el('downloadsHint').textContent = t.downloadsHint;
+
+    // set time formatter for logs
+    currentLocale = t._locale || 'hu-HU';
+    // Keep placeholders as-is
+  }
+
+  // --- Python -> JS port (logika megőrizve) ---
+  const pieces = ['pawn','rook','knight','bishop','queen','king'];
+  const colors = ['white','black'];
+  const columns = ['a','b','c','d','e','f','g','h'];
+  const rows = ['1','2','3','4','5','6','7','8'];
+
+  function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  function isValidMove(piece, start, end){
+    if(start===end) return false;
+    const start_col = start[0], start_row = +start[1];
+    const end_col = end[0], end_row = +end[1];
+    const dx = Math.abs(start_col.charCodeAt(0) - end_col.charCodeAt(0));
+    const dy = Math.abs(start_row - end_row);
+    switch(piece){
+      case 'pawn': return start_col===end_col && dy===1; // en passant külön ágon
+      case 'rook': return start_col===end_col || start_row===end_row;
+      case 'knight': return (dx===2 && dy===1) || (dx===1 && dy===2);
+      case 'bishop': return dx===dy;
+      case 'queen': return start_col===end_col || start_row===end_row || dx===dy;
+      case 'king': return dx<=1 && dy<=1;
+      default: return false;
+    }
+  }
+
+  function generateChunk(n, opts){
+    const { withCastle, withEnPassant } = opts;
+    const out = [];
+    let produced = 0;
+    while(produced < n){
+      const color = randChoice(colors);
+
+      // Sánc (1%)
+      if(withCastle && Math.random() < 0.01){
+        const side = Math.random() < 0.5 ? 'O-O' : 'O-O-O';
+        out.push(`${color} castle ${side}`);
+        produced++; continue;
+      }
+
+      const piece = randChoice(pieces);
+      const start = randChoice(columns) + randChoice(rows);
+      if(piece==='pawn' && ((color==='white' && start[1]==='1') ||
+                            (color==='black' && start[1]==='8'))) continue;
+
+      // En passant (5%) a gyalog külön ága
+      if(withEnPassant && piece==='pawn' && Math.random()<0.05){
+        const start_col = start[0];
+        const start_row = +start[1];
+        let dir_row = 0;
+        if(color==='white' && start_row===5) dir_row = 1;
+        else if(color==='black' && start_row===4) dir_row = -1;
+        if(dir_row!==0){
+          const dir_col = Math.random()<0.5 ? -1 : 1;
+          const newCode = start_col.charCodeAt(0) + dir_col;
+          if(newCode>=97 && newCode<=104){ // a..h
+            const end = String.fromCharCode(newCode) + String(start_row + dir_row);
+            out.push(`${color} pawn ${start}${end} en_passant`);
+            produced++; continue;
+          }
+        }
+        // ha nem lehet szabályosan en passant, essen vissza normál ágra
+      }
+
+      // normál lépés
+      let end = randChoice(columns) + randChoice(rows);
+      if(piece==='pawn'){
+        const sc = start[0];
+        const sr = +start[1];
+        if(color==='white'){
+          if(sr===8) continue; // nem léphet feljebb
+          end = sc + String(sr+1);
+        } else {
+          if(sr===1) continue;
+          end = sc + String(sr-1);
+        }
+      }
+
+      if(isValidMove(piece, start, end)){
+        out.push(`${color} ${piece} ${start}${end}`);
+        produced++;
+      }
+    }
+    return out;
+  }
+
+  // --- UI & pipeline ---
+  const movesPerFile = document.getElementById('movesPerFile');
+  const fileCount = document.getElementById('fileCount');
+  const startIndex = document.getElementById('startIndex');
+  const namePattern = document.getElementById('namePattern');
+  const castling = document.getElementById('castling');
+  const enpassant = document.getElementById('enpassant');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const bar = document.getElementById('bar');
+  const kpiMoves = document.getElementById('kpiMoves');
+  const kpiFiles = document.getElementById('kpiFiles');
+  const downloads = document.getElementById('downloads');
+  const log = document.getElementById('log');
+  const presetFast = document.getElementById('presetFast');
+  const presetHeavy = document.getElementById('presetHeavy');
+  const lang = document.getElementById('lang');
+
+  let abort = false;
+  let currentLocale = 'hu-HU';
+
+  presetFast.onclick = ()=>{ movesPerFile.value = 100000; fileCount.value = 1; saveSettings(); };
+  presetHeavy.onclick = ()=>{ movesPerFile.value = 1000000; fileCount.value = 1; saveSettings(); };
+
+  function appendLog(line){
+    const ts = new Date().toLocaleTimeString(currentLocale);
+    log.textContent += `[${ts}] ${line}\n`;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function asFileName(pattern, n){ return pattern.replace('{n}', n); }
+
+  async function generateFile(fileIndex){
+    const total = +movesPerFile.value;
+    const chunk = 10000; // 10k-s csomagokban, hogy a UI éljen
+    let made = 0;
+    let moves_with_index = []; // A lépések (stringek) listája sorszámmal
+
+    while(made < total){
+      if(abort) throw new Error('stopped');
+      const todo = Math.min(chunk, total - made);
+      const partial = generateChunk(todo, { withCastle: castling.checked, withEnPassant: enpassant.checked });
+      
+      // MÓDOSÍTVA: Sorszám hozzáadása a lépés elé, szóközökkel elválasztva
+      const offset = made; 
+      for(let i=0;i<partial.length;i++){
+        moves_with_index.push(`${offset + i + 1}. ${partial[i]}`); 
+      }
+      
+      made += partial.length;
+      bar.style.width = ((made/total)*100).toFixed(2)+'%';
+      kpiMoves.textContent = (Number(kpiMoves.textContent) + partial.length).toString();
+      await new Promise(r=>setTimeout(r,0)); // yield a böngészőnek
+    }
+    
+    // Eredmény: Egyetlen string, szóközökkel elválasztva
+    const moves_string = moves_with_index.join(' '); 
+
+    const unixTimestamp = Math.floor(Date.now() / 1000);
+
+    const content = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chess Moves ${fileIndex}</title>
+  <style>
+    body{font-family:monospace; background:#171a2b; color:#e7e9f6; padding:20px; word-wrap:break-word; font-size: 14px;} 
+    h1, p {margin-bottom: 20px;}
+    .moves {font-size: 100%; border: 1px solid #444; padding: 15px; background: #0f1220; display: block; line-height: 1.6;}
+  </style>
+</head>
+<body>
+  <p>Program ID: <code>0135208E74093580</code></p>
+  <p>Unix timestamp (seconds): <code>${unixTimestamp}</code></p>
+  <h1>Generated Chess Moves - File ${fileIndex}</h1>
+  <p>Total moves: ${total.toLocaleString(currentLocale)}</p>
+  <div class="moves">${moves_string}</div>
+</body>
+</html>`;
+
+    // kész: blob & download link
+    const text = content; 
+    const blob = new Blob([text], {type:'text/html'}); 
+    const url = URL.createObjectURL(blob);
+    const name = asFileName(namePattern.value, fileIndex);
+
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.textContent = name; a.className = 'dl';
+    downloads.appendChild(a);
+    downloads.appendChild(document.createTextNode(' '));
+
+    // localized "done" line
+    const t = I18N[document.documentElement.lang] || I18N.hu;
+    appendLog(`${t.logDone} ${name} (${new Blob([text]).size.toLocaleString(currentLocale)} bytes)`);
+    kpiFiles.textContent = (Number(kpiFiles.textContent) + 1).toString();
+  }
+
+  async function run(){
+    abort = false; downloads.innerHTML=''; log.textContent='';
+    kpiMoves.textContent = '0'; kpiFiles.textContent='0'; bar.style.width='0%';
+
+    const files = +fileCount.value;
+    let n = +startIndex.value;
+
+    startBtn.disabled = true; stopBtn.disabled = false;
+
+    // localized "start" line
+    const t = I18N[document.documentElement.lang] || I18N.hu;
+
+    for(let i=0;i<files;i++){
+      if(abort){ appendLog(t.logStopped); break; }
+      appendLog(`${t.logStart} ${asFileName(namePattern.value, n)}`);
+      bar.style.width='0%';
+      await generateFile(n);
+      n += 1;
+      await new Promise(r=>setTimeout(r,0));
+    }
+
+    startBtn.disabled = false; stopBtn.disabled = true;
+  }
+
+  startBtn.onclick = run;
+  stopBtn.onclick = ()=>{ abort = true; };
+
+  // language switcher
+  lang.addEventListener('change', ()=>{
+    applyLang(lang.value);
+    saveSettings(); // Nyelvváltáskor is menti a beállítást
+  });
+
+  // initialize default lang (HU)
+  loadSettings(); // Betölti a mentett beállításokat (nyelvet is)
+  setupSettingListeners(); // Beállítja a mentési figyelőket
+})();
+</script>
+</body>
+</html>
