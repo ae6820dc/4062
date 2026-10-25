@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'io.github.ae6820dc.studio'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+    defaultConfig {
+        applicationId 'io.github.ae6820dc.chesssamples3'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '1.0'
+        testInstrumentationRunner 'io.github.ae6820dc.studio.SmokeInstrumentation'
+        resValue 'string', 'app_name', 'Chess Studio 3'
+    }
+    signingConfigs { stableDebug { storeFile file('../signing/chess-debug.jks'); storePassword 'android'; keyAlias 'chess-debug'; keyPassword 'android' } }
+    buildTypes {
+        debug { signingConfig signingConfigs.stableDebug }
+        release { signingConfig signingConfigs.stableDebug; debuggable false }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets.main.assets.srcDirs = [layout.buildDirectory.dir('generated/offline')]
+}
+def prepare = tasks.register('prepareOfflineAssets', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'prepare-assets.py'
+}
+tasks.named('preBuild').configure { dependsOn prepare }

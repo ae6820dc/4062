@@ -1,0 +1,83 @@
+name: Chess Samples 3 APK
+on:
+  push:
+    paths:
+      - 'android-chess/**'
+      - 'chess/3/**'
+      - '.github/workflows/chess-samples-3.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: chess-samples-3-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '13114758'
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build APK and native runtime tests
+        working-directory: android-chess
+        run: gradle --no-daemon assembleDebug assembleDebugAndroidTest lintDebug
+      - name: Verify packaged source bytes and previous releases
+        run: |
+          python3 android-chess/verify-apk.py android-chess/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose android-chess/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging android-chess/app/build/outputs/apk/debug/app-debug.apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Test every sample offline and after process restart
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          script: android-chess/android-tests.sh
+      - name: Upload build and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-samples-3-build-and-tests
+          path: |
+            android-chess/app/build/outputs/apk/**/*.apk
+            android-chess/app/build/reports/lint-results-debug.html
+            android-chess/test-results/
+            android-chess/app/build/generated/offline/catalog.json
+            android-chess/app/build/generated/offline/source-checksums.json
+      - name: Publish a distinct immutable APK alongside existing releases
+        env:
+          RELEASE_NAME: chess-studio-3-v1.apk
+        run: |
+          test ! -e "apk/$RELEASE_NAME"
+          cp android-chess/app/build/outputs/apk/debug/app-debug.apk "apk/$RELEASE_NAME"
+          cp android-chess/app/build/generated/offline/catalog.json apk/chess-studio-3-v1-catalog.json
+          cp android-chess/app/build/generated/offline/source-checksums.json apk/chess-studio-3-v1-sources.json
+          cp android-chess/test-results/seed.txt apk/chess-studio-3-v1-test-seed.txt
+          cp android-chess/test-results/restore.txt apk/chess-studio-3-v1-test-restore.txt
+          sha256sum "apk/$RELEASE_NAME" > apk/chess-studio-3-v1.sha256
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "apk/$RELEASE_NAME" apk/chess-studio-3-v1-*.json apk/chess-studio-3-v1-test-*.txt apk/chess-studio-3-v1.sha256
+          git commit -m 'Publish tested offline Chess Studio 3 APK with all discovered samples'
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin HEAD:"$GITHUB_REF_NAME"
