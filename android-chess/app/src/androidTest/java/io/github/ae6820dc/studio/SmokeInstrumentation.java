@@ -47,8 +47,10 @@ public final class SmokeInstrumentation extends Instrumentation {
             JSONArray expected=new JSONArray(new String(getTargetContext().getAssets().open("catalog.json").readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));
             require(!catalog.isEmpty()&&catalog.size()==expected.length(),"complete dynamic catalog");
             require(getTargetContext().checkSelfPermission("android.permission.INTERNET")!=android.content.pm.PackageManager.PERMISSION_GRANTED,"no Internet permission");
-            require(web.getSettings().getJavaScriptEnabled()&&web.getSettings().getDomStorageEnabled(),"JavaScript and DOM storage enabled");
-            require(!web.getSettings().getAllowFileAccess(),"file access disabled");
+            boolean[] settings=new boolean[2];
+            runOnMainSync(()->{settings[0]=web.getSettings().getJavaScriptEnabled()&&web.getSettings().getDomStorageEnabled();settings[1]=!web.getSettings().getAllowFileAccess();});
+            require(settings[0],"JavaScript and DOM storage enabled");
+            require(settings[1],"file access disabled");
             Method open=MainActivity.class.getDeclaredMethod("open",JSONObject.class);open.setAccessible(true);
             Method leave=MainActivity.class.getDeclaredMethod("leave",Runnable.class);leave.setAccessible(true);
             Method home=MainActivity.class.getDeclaredMethod("home");home.setAccessible(true);
