@@ -21,7 +21,7 @@ public final class MainActivity extends Activity {
     private LinearLayout root;
     private FrameLayout content;
     private WebView web;
-    private JSONObject current;
+    private volatile JSONObject current;
     private ValueCallback<Uri[]> chooser;
     private byte[] pendingDownload;
     private String pendingOrigin, importOrigin;
@@ -72,6 +72,7 @@ public final class MainActivity extends Activity {
         web=new WebView(this);web.setBackgroundColor(0xff101827);
         WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);s.setSupportMultipleWindows(false);
         web.addJavascriptInterface(new Downloads(),"StudioDownloads");
+        web.addJavascriptInterface(new StateStore(),"StudioState");
         web.setWebViewClient(new WebViewClient(){
             @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){return asset(r.getUrl());}
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){
@@ -86,6 +87,14 @@ public final class MainActivity extends Activity {
                 message("Use Programs to select an application.");return true;
             }
             @Override public void onPageFinished(WebView v,String u){
+                JSONObject restoring=current;
+                if(restoring!=null && u.equals(origin(restoring)+"/__studio_restore__.html")) {
+                    String snapshot=getSharedPreferences("durable-state",MODE_PRIVATE).getString(text(restoring,"id"),null);
+                    if(snapshot!=null) {
+                        v.evaluateJavascript("(function(){const state="+snapshot+";localStorage.clear();for(const k of Object.keys(state))localStorage.setItem(k,state[k]);location.replace("+JSONObject.quote(url(restoring))+");})()",null);
+                    } else v.loadUrl(url(restoring));
+                    return;
+                }
                 for(JSONObject p:programs)if(url(p).equals(u))current=p;
                 if(current==null || !u.startsWith(origin(current)+"/"))return;
                 try {String code=new String(read(getAssets().open("host.js")),StandardCharsets.UTF_8);v.evaluateJavascript(code,null);}catch(IOException e){message(e.getMessage());}
@@ -126,13 +135,14 @@ public final class MainActivity extends Activity {
         for(JSONObject p:programs){if(!text(p,"group").equals(group)){group=text(p,"group");TextView title=new TextView(this);title.setText(group);title.setTextSize(19);title.setTextColor(0xff73dbb6);title.setPadding(0,dp(22),0,dp(8));list.addView(title);}Button choose=new Button(this);choose.setAllCaps(false);choose.setText(text(p,"name"));choose.setOnClickListener(v->open(p));list.addView(choose,new LinearLayout.LayoutParams(-1,-2));}
         scroll.addView(list);content.addView(scroll);
     }
-    private void open(JSONObject p){current=p;content.removeAllViews();if(web.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)web.getParent()).removeView(web);content.addView(web,new FrameLayout.LayoutParams(-1,-1));web.loadUrl(url(p));}
+    private void open(JSONObject p){current=p;content.removeAllViews();if(web.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)web.getParent()).removeView(web);content.addView(web,new FrameLayout.LayoutParams(-1,-1));String snapshot=getSharedPreferences("durable-state",MODE_PRIVATE).getString(text(p,"id"),null);web.loadUrl(snapshot==null?url(p):origin(p)+"/__studio_restore__.html");}
     private void leave(Runnable next){if(downloading){message("Finish saving the file before switching programs.");return;}if(current==null){next.run();return;}web.evaluateJavascript("if(typeof saveGame==='function')saveGame();if(typeof save==='function')save();if(window.studioSaveForm)window.studioSaveForm();",ignored->next.run());}
     private void menu(){String[] names=new String[programs.size()];for(int i=0;i<names.length;i++)names[i]=text(programs.get(i),"group")+" · "+text(programs.get(i),"name");new AlertDialog.Builder(this).setTitle("Switch program").setItems(names,(d,i)->leave(()->open(programs.get(i)))).setNegativeButton("Cancel",null).show();}
     private boolean trusted(Uri u){if(!"https".equals(u.getScheme())||u.getPort()!=-1||u.getUserInfo()!=null)return false;for(JSONObject p:programs)if((text(p,"id")+SUFFIX).equals(u.getHost()))return true;return false;}
     private WebResourceResponse asset(Uri u){
         if(!trusted(u))return response("text/plain",403,"Forbidden",new byte[0]);
         String path=u.getPath();if(path==null || path.contains("..") || path.contains("\\") || path.indexOf('\0')>=0)return response("text/plain",400,"Bad Request",new byte[0]);
+        if(path.equals("/__studio_restore__.html"))return response("text/html",200,"OK","<!doctype html><meta charset=utf-8><title>Restoring saved game</title>".getBytes(StandardCharsets.UTF_8));
         if(path.endsWith("/"))path+="index.html";
         try {return response(mime(path),200,"OK",read(getAssets().open("site"+path+(path.endsWith(".gz")?".bin":""))));}catch(IOException e){return response("text/plain",404,"Not Found",new byte[0]);}
     }
@@ -157,6 +167,20 @@ public final class MainActivity extends Activity {
             if(i==0){web.evaluateJavascript("if(typeof saveGame==='function')saveGame();if(typeof save==='function')save();if(window.studioSaveForm)window.studioSaveForm();window.studioExport();",null);}
             else {importOrigin=origin(current);Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(pick,IMPORT_STORAGE);}
         }).setNegativeButton("Cancel",null).show();
+    }
+    // Chromium batches localStorage disk writes. Mirror exact key/value strings
+    // synchronously in app-private native storage, then restore on the same origin
+    // before the unmodified program script executes after a process restart.
+    private final class StateStore {
+        @JavascriptInterface public void save(String id,String json) {
+            JSONObject active=current;
+            if(active==null || !text(active,"id").equals(id) || json.length()>LIMIT)return;
+            try {
+                JSONObject state=new JSONObject(json);Iterator<String> keys=state.keys();
+                while(keys.hasNext())if(!(state.get(keys.next()) instanceof String))return;
+                if(!getSharedPreferences("durable-state",MODE_PRIVATE).edit().putString(id,state.toString()).commit())message("Cannot persist saved state. Export a backup.");
+            }catch(JSONException e){message("Cannot persist saved state.");}
+        }
     }
     private final class Downloads {
         @JavascriptInterface public void save(String name,String mime,String base64){

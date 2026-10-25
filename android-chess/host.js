@@ -3,6 +3,20 @@
   if (window.studioDownload) return;
   const program = location.hostname.split('.')[0];
   const formKey = '__studio_generator_form_v1';
+  // Preserve original keys and values while making completed writes durable
+  // across an immediate Android process stop (WebView flushes asynchronously).
+  if (typeof StudioState !== 'undefined') {
+    const persist = () => StudioState.save(program, JSON.stringify(Object.fromEntries(Object.entries(localStorage))));
+    for (const method of ['setItem', 'removeItem', 'clear']) {
+      const original = Storage.prototype[method];
+      Storage.prototype[method] = function (...args) {
+        const result = original.apply(this, args);
+        if (this === localStorage) persist();
+        return result;
+      };
+    }
+    persist();
+  }
   // Versions 1 and 2 have no original storage API. Keep their seeded generator
   // controls in host-owned storage without changing any original key or ID.
   if (document.getElementById('generate') && document.getElementById('seed')) {
