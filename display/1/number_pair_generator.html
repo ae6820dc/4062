@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Number Pair Generator</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --card: #111826;
+    --acc: #37d1a9;
+    --text: #e7f0ff;
+    --muted: #89a1b5;
+    --danger: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    background: radial-gradient(1200px 800px at 10% 10%, #0f1624 0%, #0b0f14 40%, #0b0f14 100%);
+    color: var(--text);
+    line-height: 1.35;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .app { max-width: 980px; margin: 0 auto; }
+  h1 {
+    font-size: clamp(1.2rem, 2.8vw, 1.8rem);
+    margin: 0 0 12px;
+    letter-spacing: 0.4px;
+  }
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.05));
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    padding: 14px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+    gap: 10px 14px;
+  }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: #0e1522;
+    color: var(--text);
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  input[type="number"]:focus {
+    border-color: var(--acc);
+    box-shadow: 0 0 0 3px rgba(55, 209, 169, 0.2);
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  button {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: #0f192a;
+    color: var(--text);
+    cursor: pointer;
+    transition: transform .06s ease, background .2s, border-color .2s;
+  }
+  button:hover { background: #112036; }
+  button:active { transform: translateY(1px); }
+  .btn-primary {
+    border-color: transparent;
+    background: linear-gradient(135deg, #2bdba1, #00b3ff);
+    color: #04111a;
+    font-weight: 700;
+  }
+  .btn-danger {
+    background: #2a0f12;
+    border-color: #42191e;
+    color: #ffd6d6;
+  }
+  .muted { color: var(--muted); font-size: .92rem; }
+  .output {
+    width: 100%;
+    min-height: 260px;
+    max-height: 60vh;
+    padding: 12px;
+    background: #0c141f;
+    color: var(--text);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: auto;
+    white-space: pre;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #0f1c2d;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--muted);
+    font-size: .86rem;
+  }
+  .footer {
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <h1>Number Pair Generator</h1>
+    <div class="card">
+      <div class="grid">
+        <label>First number (a):
+          <input id="a" type="number" inputmode="numeric" step="1" />
+        </label>
+        <label>Second number (b):
+          <input id="b" type="number" inputmode="numeric" step="1" />
+        </label>
+        <label>Add to (a):
+          <input id="addA" type="number" inputmode="numeric" step="1" />
+        </label>
+        <label>Add to (b):
+          <input id="addB" type="number" inputmode="numeric" step="1" />
+        </label>
+        <label>Repeat count:
+          <input id="count" type="number" inputmode="numeric" step="1" />
+        </label>
+        <label>Format:
+          <select id="format" style="padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:#0e1522;color:var(--text)">
+            <option value="space">a␠b (space)</option>
+            <option value="comma">a,b (CSV)</option>
+            <option value="x">a × b</option>
+            <option value="mul">a*b</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <button class="btn-primary" id="genBtn">Generate</button>
+        <button id="copyBtn">Copy</button>
+        <button id="dlBtn">Download .html</button>
+        <button class="btn-danger" id="clearBtn">Clear</button>
+        <span class="pill" id="countInfo">0 lines</span>
+      </div>
+
+      <p class="muted" style="margin-top:8px">
+        Tip: For resolution scaling, set initial width & height (a, b),
+        step size (Add to) and repeat count. Example: <em>1920 × 1080</em>,
+        add: <em>16</em> and <em>9</em> → to easily scale 16:9 resolutions.
+      </p>
+
+      <div id="out" class="output" aria-label="Output"></div>
+
+      <div class="footer">
+        <span class="muted">Status: <span id="status">Ready</span></span>
+        <span class="muted">Auto-save enabled</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const els = {
+    a: document.getElementById('a'),
+    b: document.getElementById('b'),
+    addA: document.getElementById('addA'),
+    addB: document.getElementById('addB'),
+    count: document.getElementById('count'),
+    format: document.getElementById('format'),
+    genBtn: document.getElementById('genBtn'),
+    copyBtn: document.getElementById('copyBtn'),
+    dlBtn: document.getElementById('dlBtn'),
+    clearBtn: document.getElementById('clearBtn'),
+    out: document.getElementById('out'),
+    status: document.getElementById('status'),
+    countInfo: document.getElementById('countInfo'),
+  };
+
+  const defaults = { a:1920, b:1080, addA:16, addB:9, count:10, format:'x' };
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem('number_pairs_v1');
+      const s = raw ? JSON.parse(raw) : defaults;
+      ['a','b','addA','addB','count'].forEach(k => els[k].value = s[k] ?? defaults[k]);
+      els.format.value = s.format ?? defaults.format;
+    } catch {
+      ['a','b','addA','addB','count'].forEach(k => els[k].value = defaults[k]);
+      els.format.value = defaults.format;
+    }
+  }
+
+  function saveState() {
+    const s = {
+      a:+els.a.value||0, b:+els.b.value||0,
+      addA:+els.addA.value||0, addB:+els.addB.value||0,
+      count:Math.max(0,+els.count.value||0),
+      format:els.format.value
+    };
+    localStorage.setItem('number_pairs_v1', JSON.stringify(s));
+  }
+
+  function fmt(a,b,mode){
+    switch(mode){
+      case 'space': return `${a} ${b}`;
+      case 'comma': return `${a},${b}`;
+      case 'x': return `${a} × ${b}`;
+      case 'mul': return `${a}*${b}`;
+      default: return `${a} ${b}`;
+    }
+  }
+
+  function generate(){
+    let a=+els.a.value, b=+els.b.value;
+    const addA=+els.addA.value, addB=+els.addB.value, count=+els.count.value, mode=els.format.value;
+    if([a,b,addA,addB,count].some(v=>Number.isNaN(v))) return status('Error: only integers allowed.',true);
+    if(count<0) return status('Error: repeat count cannot be negative.',true);
+    const lines=[];
+    for(let i=0;i<count;i++){ lines.push(fmt(a,b,mode)); a+=addA; b+=addB; }
+    els.out.textContent=lines.join("\n\n");
+    els.countInfo.textContent=`${lines.length} lines`;
+    status('Generated.');
+  }
+
+  function status(msg,err=false){
+    els.status.textContent=msg;
+    els.status.style.color=err?'#ff6b6b':'#a7ffcf';
+    if(!err)setTimeout(()=>{els.status.textContent='Ready';els.status.style.color='';},2000);
+  }
+
+  function copy(){
+    const txt=els.out.textContent.trim();
+    if(!txt)return status('Nothing to copy.',true);
+    navigator.clipboard.writeText(txt).then(()=>status('Copied to clipboard.')).catch(()=>status('Copy failed.',true));
+  }
+
+  function download(){
+    const txt=els.out.textContent;
+    if(!txt.trim())return status('Output is empty.',true);
+    const blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='number_pairs.html';
+    document.body.appendChild(a); a.click();
+    URL.revokeObjectURL(url); a.remove();
+    status('Download ready.');
+  }
+
+  ['a','b','addA','addB','count','format'].forEach(id=>{
+    els[id].addEventListener('input',saveState);
+    els[id].addEventListener('change',saveState);
+  });
+
+  els.genBtn.onclick=()=>{saveState();generate();};
+  els.copyBtn.onclick=copy;
+  els.dlBtn.onclick=download;
+  els.clearBtn.onclick=()=>{els.out.textContent='';els.countInfo.textContent='0 lines';status('Cleared.');};
+
+  loadState(); generate();
+})();
+</script>
+</body>
+</html>
