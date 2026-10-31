@@ -1,0 +1,1 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.ae6820dc.chesssample3.test"><application android:label="Chess verification"/><instrumentation android:name="io.github.ae6820dc.chesssample3.SmokeInstrumentation" android:targetPackage="io.github.ae6820dc.chesssample3"/></manifest>

@@ -1,0 +1,64 @@
+name: Chess sample3 standalone APK
+on:
+  push:
+    branches: [main]
+    paths: ['android-chess-sample3/**', '.github/workflows/chess-sample3.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Build and verify original source
+        working-directory: android-chess-sample3
+        run: |
+          bash build-sdk.sh
+          cmp app/src/main/assets/index.html ../chess/3/sample3.html
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android 16 offline checks
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          script: |
+            adb install android-chess-sample3/app/build/outputs/apk/debug/app-debug.apk
+            adb install android-chess-sample3/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell svc wifi disable
+            adb shell svc data disable
+            adb shell am instrument -w io.github.ae6820dc.chesssample3.test/io.github.ae6820dc.chesssample3.SmokeInstrumentation | tee runtime-chess-sample3.txt
+            grep -q 'PASS: Android 16' runtime-chess-sample3.txt
+      - name: Publish verified APK
+        run: |
+          cp android-chess-sample3/app/build/outputs/apk/debug/app-debug.apk apk/Chess.apk
+          cp runtime-chess-sample3.txt apk/Chess.verification.txt
+          sha256sum apk/Chess.apk > apk/Chess.apk.sha256
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apk/Chess*
+          git commit -m 'Add verified standalone Chess sample3 offline APK'
+          git pull --rebase origin main
+          git push origin HEAD:main
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Chess
+          path: |
+            apk/Chess*
+            runtime-chess-sample3.txt
