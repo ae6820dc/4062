@@ -1,0 +1,14 @@
+FELTÖLTÉS ÉS TELEPÍTÉS
+
+1. A sample3.html, sw-chess3.js, manifest-chess3.webmanifest és a két icon PNG fájlt töltsd fel a 4062 GitHub repó chess/3/ mappájába. A sample3.html fájlt cseréld le.
+2. Várd meg a GitHub Pages közzétételt, majd Chrome-ban nyisd meg:
+https://ae6820dc.github.io/4062/chess/3/sample3.html
+3. Ha a régi oldal jelenik meg, nyomj Ctrl+Shift+R-t.
+4. Várd meg az Offline használatra kész üzenetet.
+5. Kattints a Telepítés a PC-re gombra, vagy használd a Chrome menüjében az Oldal telepítése alkalmazásként lehetőséget.
+6. Zárd be, kapcsold ki a hálózatot, és indítsd újra a Start menüből. Ellenőrzés: lépj egy gyaloggal, zárd be az alkalmazást, majd indítsd újra internet nélkül. A mentett állás maradjon meg.
+
+Az első megnyitáshoz és telepítéshez HTTPS tárhely és internet kell. A ZIP kibontása önmagában nem telepíti az alkalmazást.
+Ha már telepítve volt, nyisd meg online a frissített oldalt és várd meg az offline kész üzenetet. Szükség esetén telepítsd újra.
+A webhelyadatok törlése az offline másolatot is eltávolíthatja.
+Frissítéskor a sw-chess3.js CACHE verzióját (v1) növeld, és a fájlokat együtt tedd közzé.

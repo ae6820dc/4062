@@ -1,0 +1,23 @@
+{
+  "id": "./sample3.html",
+  "name": "Chess",
+  "short_name": "Chess",
+  "lang": "hu",
+  "start_url": "./sample3.html",
+  "scope": "./sample3.html",
+  "display": "standalone",
+  "background_color": "#001a33",
+  "theme_color": "#001a33",
+  "icons": [
+    {
+      "src": "icon-chess3-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-chess3-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
