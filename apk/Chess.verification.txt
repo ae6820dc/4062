@@ -1,0 +1,2 @@
+PASS: Android 16 offline launch, original ID/theme, 64 squares, native pawn drag, legal moves, Flip Board, New Game, checkmate, game counter and saved state on reopen.
+
