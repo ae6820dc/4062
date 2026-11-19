@@ -13,102 +13,52 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      # GitHub Ubuntu runners include the Android SDK; avoid setup-android failure.
+      - name: Copy proven 9062 Android project
+        run: |
+          git clone --depth 1 https://github.com/ae6820dc/9062.git /tmp/source9062
+          cp -a /tmp/source9062/android-9062-web ./android-4062-web
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('android-4062-web')
+          for p in (root/'app/src/main/java').rglob('MainActivity.java'):
+              t=p.read_text().replace('web9062','web4062').replace('/9062/index.html','/4062/index.html')
+              p.write_text(t)
+              dest=root/'app/src/main/java/io/github/ae6820dc/web4062'
+              dest.mkdir(parents=True,exist_ok=True)
+              p.rename(dest/'MainActivity.java')
+          manifest=root/'app/src/main/AndroidManifest.xml'
+          manifest.write_text(manifest.read_text().replace('9062','4062'))
+          gradle=root/'app/build.gradle'
+          gradle.write_text(gradle.read_text().replace('9062','4062'))
+          settings=root/'settings.gradle'
+          settings.write_text(settings.read_text().replace('9062','4062'))
+          PY
+          python3 - <<'PY'
+          from PIL import Image,ImageDraw,ImageFont
+          from pathlib import Path
+          target=Path('android-4062-web/app/src/main/res/drawable')
+          target.mkdir(parents=True,exist_ok=True)
+          im=Image.new('RGB',(512,512),'#101827')
+          d=ImageDraw.Draw(im)
+          d.rounded_rectangle((22,22,490,490),radius=95,fill='#14243b')
+          d.line((65,130,447,130),fill='#2dd4d0',width=14)
+          d.line((65,380,447,380),fill='#2dd4d0',width=14)
+          f=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',116)
+          d.text((256,255),'4062',font=f,fill='white',anchor='mm')
+          im.save(target/'icon_4062.png')
+          PY
+      - name: Configure Android SDK
+        run: |
+          test -d "$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Generate Android project
-        shell: bash
-        run: |
-          mkdir -p app/src/main/java/com/ae6820dc/app4062 app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26 app/src/main/res/values
-          cat > settings.gradle <<'EOF'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name = 'App4062'
-          include ':app'
-          EOF
-          echo "plugins { id 'com.android.application' version '8.7.3' apply false }" > build.gradle
-          cat > app/build.gradle <<'EOF'
-          plugins { id 'com.android.application' }
-          android {
-              namespace 'com.ae6820dc.app4062'
-              compileSdk 35
-              defaultConfig { applicationId 'com.ae6820dc.app4062'; minSdk 24; targetSdk 28; versionCode 1; versionName '1.0' }
-          }
-          EOF
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET"/>
-            <application android:label="4062" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN"/>
-                  <category android:name="android.intent.category.LAUNCHER"/>
-                </intent-filter>
-              </activity>
-            </application>
-          </manifest>
-          EOF
-          python3 -m pip install --quiet --break-system-packages pillow
-          python3 - <<'PY'
-          from PIL import Image, ImageDraw, ImageFont
-          im=Image.new('RGBA',(512,512),(16,24,39,255))
-          d=ImageDraw.Draw(im)
-          d.rounded_rectangle((22,22,490,490),radius=105,fill=(16,24,39,255))
-          d.rounded_rectangle((47,47,465,465),radius=82,fill=(18,154,159,255))
-          font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',138)
-          text='4062'
-          box=d.textbbox((0,0),text,font=font,stroke_width=0)
-          d.text(((512-(box[2]-box[0]))/2-box[0],(512-(box[3]-box[1]))/2-box[1]-4),text,font=font,fill='white')
-          im.save('app/src/main/res/drawable/app_icon.png')
-          im.save('app/src/main/res/drawable/ic_launcher_foreground.png')
-          PY
-          cat > app/src/main/res/values/colors.xml <<'EOF'
-          <resources><color name="icon_background">#101827</color></resources>
-          EOF
-          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-            <background android:color="@color/icon_background"/>
-            <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-          </adaptive-icon>
-          EOF
-          mkdir -p app/src/main/res/mipmap-mdpi
-          cp app/src/main/res/drawable/app_icon.png app/src/main/res/mipmap-mdpi/ic_launcher.png
-          cat > app/src/main/java/com/ae6820dc/app4062/MainActivity.java <<'EOF'
-          package com.ae6820dc.app4062;
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.view.ViewGroup;
-          public class MainActivity extends Activity {
-            WebView web;
-            @Override public void onCreate(Bundle state) {
-              super.onCreate(state);
-              web = new WebView(this);
-              setContentView(web, new ViewGroup.LayoutParams(-1,-1));
-              WebSettings s=web.getSettings();
-              s.setJavaScriptEnabled(true);
-              s.setDomStorageEnabled(true);
-              s.setBuiltInZoomControls(true);
-              s.setDisplayZoomControls(false);
-              s.setSupportZoom(true);
-              s.setUseWideViewPort(true);
-              s.setLoadWithOverviewMode(true);
-              web.setWebViewClient(new WebViewClient());
-              web.setWebChromeClient(new WebChromeClient());
-              web.loadUrl("https://ae6820dc.github.io/4062/index.html");
-            }
-            @Override public void onBackPressed() {
-              if(web.canGoBack()) web.goBack(); else super.onBackPressed();
-            }
-          }
-          EOF
       - name: Build APK
-        run: gradle --no-daemon :app:assembleDebug
+        working-directory: android-4062-web
+        run: gradle :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: 4062-zoomable-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: 4062-APK
+          path: android-4062-web/app/build/outputs/apk/debug/app-debug.apk
