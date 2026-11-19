@@ -56,6 +56,8 @@ jobs:
       - name: Build APK
         working-directory: android-4062-web
         run: gradle :app:assembleDebug --no-daemon
+      - name: Verify installable APK
+        run: test -s android-4062-web/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: 4062-APK
