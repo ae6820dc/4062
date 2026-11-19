@@ -13,40 +13,37 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Copy proven 9062 Android project
+      - name: Prepare 4062 app from working 9062 source files
+        shell: bash
         run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/ae6820dc/9062.git /tmp/source9062
-          git -C /tmp/source9062 sparse-checkout set android-9062-web
-          cp -a /tmp/source9062/android-9062-web ./android-4062-web
+          set -euo pipefail
+          base=https://raw.githubusercontent.com/ae6820dc/9062/main/android-9062-web
+          root=android-4062-web
+          mkdir -p "$root/app/src/main/java/io/github/ae6820dc/web4062" "$root/app/src/main/res/drawable"
+          curl -fLsS --retry 3 "$base/settings.gradle" -o "$root/settings.gradle"
+          curl -fLsS --retry 3 "$base/build.gradle" -o "$root/build.gradle"
+          curl -fLsS --retry 3 "$base/app/build.gradle" -o "$root/app/build.gradle"
+          curl -fLsS --retry 3 "$base/app/src/main/AndroidManifest.xml" -o "$root/app/src/main/AndroidManifest.xml"
+          curl -fLsS --retry 3 "$base/app/src/main/java/io/github/ae6820dc/web9062/MainActivity.java" -o "$root/app/src/main/java/io/github/ae6820dc/web4062/MainActivity.java"
           python3 - <<'PY'
           from pathlib import Path
           root=Path('android-4062-web')
-          for p in (root/'app/src/main/java').rglob('MainActivity.java'):
-              t=p.read_text().replace('web9062','web4062').replace('/9062/index.html','/4062/index.html')
-              p.write_text(t)
-              dest=root/'app/src/main/java/io/github/ae6820dc/web4062'
-              dest.mkdir(parents=True,exist_ok=True)
-              p.rename(dest/'MainActivity.java')
-          manifest=root/'app/src/main/AndroidManifest.xml'
-          manifest.write_text(manifest.read_text().replace('9062','4062'))
-          gradle=root/'app/build.gradle'
-          gradle.write_text(gradle.read_text().replace('9062','4062'))
-          settings=root/'settings.gradle'
-          settings.write_text(settings.read_text().replace('9062','4062'))
+          for p in [root/'settings.gradle',root/'app/build.gradle',root/'app/src/main/AndroidManifest.xml',root/'app/src/main/java/io/github/ae6820dc/web4062/MainActivity.java']:
+              p.write_text(p.read_text().replace('9062','4062'))
           PY
           python3 - <<'PY'
-          from PIL import Image,ImageDraw,ImageFont
+          from PIL import Image,ImageDraw
           from pathlib import Path
-          target=Path('android-4062-web/app/src/main/res/drawable')
-          target.mkdir(parents=True,exist_ok=True)
-          im=Image.new('RGB',(512,512),'#101827')
+          im=Image.new('RGBA',(512,512),(248,247,244,255))
           d=ImageDraw.Draw(im)
-          d.rounded_rectangle((22,22,490,490),radius=95,fill='#14243b')
-          d.line((65,130,447,130),fill='#2dd4d0',width=14)
-          d.line((65,380,447,380),fill='#2dd4d0',width=14)
-          f=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',116)
-          d.text((256,255),'4062',font=f,fill='white',anchor='mm')
-          im.save(target/'icon_4062.png')
+          d.polygon([(95,168),(252,81),(420,166),(260,254)],fill='#E7B977')
+          d.polygon([(95,168),(260,254),(260,431),(95,339)],fill='#C98A4B')
+          d.polygon([(260,254),(420,166),(420,339),(260,431)],fill='#AC703D')
+          d.polygon([(170,126),(332,214),(300,231),(139,143)],fill='#F4D3A1')
+          d.polygon([(300,231),(332,214),(332,383),(300,403)],fill='#D6A36C')
+          d.line([(95,168),(260,254),(420,166)],fill='#8E582D',width=5)
+          d.line([(260,254),(260,431)],fill='#8E582D',width=5)
+          im.save('android-4062-web/app/src/main/res/drawable/icon_4062.png')
           PY
       - name: Configure Android SDK
         run: |
