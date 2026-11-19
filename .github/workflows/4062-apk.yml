@@ -49,12 +49,19 @@ jobs:
             </application>
           </manifest>
           EOF
-          cat > app/src/main/res/drawable/app_icon.xml <<'EOF'
-          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-            <item><shape android:shape="rectangle"><solid android:color="#101827"/><corners android:radius="16dp"/></shape></item>
-            <item android:left="14dp" android:right="14dp" android:top="14dp" android:bottom="14dp"><shape android:shape="rectangle"><solid android:color="#36D6D0"/><corners android:radius="12dp"/></shape></item>
-          </layer-list>
-          EOF
+          python3 -m pip install --quiet --break-system-packages pillow
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          im=Image.new('RGBA',(512,512),(16,24,39,255))
+          d=ImageDraw.Draw(im)
+          d.rounded_rectangle((22,22,490,490),radius=105,fill=(16,24,39,255))
+          d.rounded_rectangle((47,47,465,465),radius=82,fill=(18,154,159,255))
+          font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',138)
+          text='4062'
+          box=d.textbbox((0,0),text,font=font,stroke_width=0)
+          d.text(((512-(box[2]-box[0]))/2-box[0],(512-(box[3]-box[1]))/2-box[1]-4),text,font=font,fill='white')
+          im.save('app/src/main/res/drawable/app_icon.png')
+          PY
           cat > app/src/main/java/com/ae6820dc/app4062/MainActivity.java <<'EOF'
           package com.ae6820dc.app4062;
           import android.app.Activity;
