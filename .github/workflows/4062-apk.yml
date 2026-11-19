@@ -1,0 +1,95 @@
+name: Build 4062 Android APK
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/4062-apk.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate Android project
+        shell: bash
+        run: |
+          mkdir -p app/src/main/java/com/ae6820dc/app4062 app/src/main/res/drawable
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = 'App4062'
+          include ':app'
+          EOF
+          echo "plugins { id 'com.android.application' version '8.7.3' apply false }" > build.gradle
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.ae6820dc.app4062'
+              compileSdk 35
+              defaultConfig { applicationId 'com.ae6820dc.app4062'; minSdk 24; targetSdk 28; versionCode 1; versionName '1.0' }
+          }
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <application android:label="4062" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:icon="@drawable/app_icon">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          cat > app/src/main/res/drawable/app_icon.xml <<'EOF'
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+            <item><shape android:shape="rectangle"><solid android:color="#101827"/><corners android:radius="16dp"/></shape></item>
+            <item android:left="14dp" android:right="14dp" android:top="14dp" android:bottom="14dp"><shape android:shape="rectangle"><solid android:color="#36D6D0"/><corners android:radius="12dp"/></shape></item>
+          </layer-list>
+          EOF
+          cat > app/src/main/java/com/ae6820dc/app4062/MainActivity.java <<'EOF'
+          package com.ae6820dc.app4062;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.view.ViewGroup;
+          public class MainActivity extends Activity {
+            WebView web;
+            @Override public void onCreate(Bundle state) {
+              super.onCreate(state);
+              web = new WebView(this);
+              setContentView(web, new ViewGroup.LayoutParams(-1,-1));
+              WebSettings s=web.getSettings();
+              s.setJavaScriptEnabled(true);
+              s.setDomStorageEnabled(true);
+              s.setBuiltInZoomControls(true);
+              s.setDisplayZoomControls(false);
+              s.setSupportZoom(true);
+              s.setUseWideViewPort(true);
+              s.setLoadWithOverviewMode(true);
+              web.setWebViewClient(new WebViewClient());
+              web.setWebChromeClient(new WebChromeClient());
+              web.loadUrl("https://ae6820dc.github.io/4062/index.html");
+            }
+            @Override public void onBackPressed() {
+              if(web.canGoBack()) web.goBack(); else super.onBackPressed();
+            }
+          }
+          EOF
+      - name: Build APK
+        run: gradle --no-daemon :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4062-zoomable-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
