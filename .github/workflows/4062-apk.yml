@@ -20,7 +20,7 @@ jobs:
       - name: Generate Android project
         shell: bash
         run: |
-          mkdir -p app/src/main/java/com/ae6820dc/app4062 app/src/main/res/drawable
+          mkdir -p app/src/main/java/com/ae6820dc/app4062 app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26 app/src/main/res/values
           cat > settings.gradle <<'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
           dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
@@ -39,7 +39,7 @@ jobs:
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
-            <application android:label="4062" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:icon="@drawable/app_icon">
+            <application android:label="4062" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">
               <activity android:name=".MainActivity" android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
@@ -61,7 +61,19 @@ jobs:
           box=d.textbbox((0,0),text,font=font,stroke_width=0)
           d.text(((512-(box[2]-box[0]))/2-box[0],(512-(box[3]-box[1]))/2-box[1]-4),text,font=font,fill='white')
           im.save('app/src/main/res/drawable/app_icon.png')
+          im.save('app/src/main/res/drawable/ic_launcher_foreground.png')
           PY
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <resources><color name="icon_background">#101827</color></resources>
+          EOF
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:color="@color/icon_background"/>
+            <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+          mkdir -p app/src/main/res/mipmap-mdpi
+          cp app/src/main/res/drawable/app_icon.png app/src/main/res/mipmap-mdpi/ic_launcher.png
           cat > app/src/main/java/com/ae6820dc/app4062/MainActivity.java <<'EOF'
           package com.ae6820dc.app4062;
           import android.app.Activity;
