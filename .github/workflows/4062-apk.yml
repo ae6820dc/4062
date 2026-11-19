@@ -15,7 +15,8 @@ jobs:
           java-version: '17'
       - name: Copy proven 9062 Android project
         run: |
-          git clone --depth 1 https://github.com/ae6820dc/9062.git /tmp/source9062
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/ae6820dc/9062.git /tmp/source9062
+          git -C /tmp/source9062 sparse-checkout set android-9062-web
           cp -a /tmp/source9062/android-9062-web ./android-4062-web
           python3 - <<'PY'
           from pathlib import Path
