@@ -3,7 +3,7 @@
 
     <application
         android:icon="@drawable/mta_web_icon"
-        android:label="MTA"
+        android:label="MTA Web"
         android:roundIcon="@drawable/mta_web_icon"
         android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
