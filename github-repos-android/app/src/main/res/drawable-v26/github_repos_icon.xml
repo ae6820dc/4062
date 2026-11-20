@@ -1,0 +1,4 @@
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/github_repos_icon_background" />
+    <foreground android:drawable="@drawable/github_repos_symbol" />
+</adaptive-icon>
