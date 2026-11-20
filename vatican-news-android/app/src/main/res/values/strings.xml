@@ -6,4 +6,7 @@
     <string name="share">Share</string>
     <string name="program_id" translatable="false">D1060A968545B1EC</string>
     <string name="program_id_display">Program ID : %1$s</string>
+    <string name="program_id_toggle" translatable="false">⋮</string>
+    <string name="collapse_program_id">Collapse Program ID</string>
+    <string name="expand_program_id">Expand Program ID</string>
 </resources>
