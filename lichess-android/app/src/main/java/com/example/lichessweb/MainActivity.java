@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
@@ -14,6 +15,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
+import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -23,15 +25,23 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 
 public class MainActivity extends Activity {
     private static final String HOME_URL = "https://lichess.org/";
+    private static final String SESSION_PREFS = "browserSession";
+    private static final String TAB_URLS = "tabUrls";
     private static final String TAB_STATES = "tabStates";
     private static final String ACTIVE_TAB = "activeTab";
     private static final String PROGRAM_ID_EXPANDED = "programIdExpanded";
 
     private final ArrayList<WebView> tabs = new ArrayList<>();
+    private final HashMap<WebView, String> tabUrls = new HashMap<>();
+    private SharedPreferences sessionPrefs;
     private FrameLayout page;
     private Button tabPicker;
     private Button closeButton;
@@ -43,6 +53,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         CookieManager.getInstance().setAcceptCookie(true);
+        sessionPrefs = getSharedPreferences(SESSION_PREFS, MODE_PRIVATE);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -99,17 +110,73 @@ public class MainActivity extends Activity {
 
         ArrayList<Bundle> savedTabs = state == null ? null : state.getParcelableArrayList(TAB_STATES);
         if (savedTabs == null || savedTabs.isEmpty()) {
-            openHomeTab();
+            restoreSession();
         } else {
             for (Bundle savedTab : savedTabs) {
                 WebView tab = createTab();
                 tabs.add(tab);
-                if (tab.restoreState(savedTab) == null) {
-                    tab.loadUrl(HOME_URL);
+                WebBackForwardList history = tab.restoreState(savedTab);
+                if (history != null && history.getCurrentItem() != null) {
+                    rememberUrl(tab, history.getCurrentItem().getUrl());
+                } else {
+                    String url = savedTab.getString(TAB_URLS, HOME_URL);
+                    tabUrls.put(tab, url);
+                    tab.loadUrl(url);
                 }
             }
             showTab(tabs.get(state.getInt(ACTIVE_TAB)));
         }
+    }
+
+    private void restoreSession() {
+        JSONArray urls;
+        try {
+            urls = new JSONArray(sessionPrefs.getString(TAB_URLS, "[]"));
+        } catch (JSONException invalidSession) {
+            urls = new JSONArray();
+        }
+
+        for (int i = 0; i < urls.length(); i++) {
+            String url = urls.optString(i, "");
+            if (!isWebUrl(url)) {
+                continue;
+            }
+            WebView tab = createTab();
+            tabs.add(tab);
+            tabUrls.put(tab, url);
+            tab.loadUrl(url);
+        }
+        if (tabs.isEmpty()) {
+            openHomeTab();
+        } else {
+            int index = sessionPrefs.getInt(ACTIVE_TAB, 0);
+            showTab(tabs.get(Math.max(0, Math.min(index, tabs.size() - 1))));
+        }
+    }
+
+    private void rememberUrl(WebView tab, String url) {
+        if (tabs.contains(tab) && isWebUrl(url)) {
+            tabUrls.put(tab, url);
+        }
+    }
+
+    private void saveSession() {
+        if (activeTab == null) {
+            return;
+        }
+        JSONArray urls = new JSONArray();
+        int activeIndex = 0;
+        for (WebView tab : tabs) {
+            String url = tabUrls.get(tab);
+            if (url != null) {
+                if (tab == activeTab) {
+                    activeIndex = urls.length();
+                }
+                urls.put(url);
+            }
+        }
+        sessionPrefs.edit().putString(TAB_URLS, urls.toString())
+                .putInt(ACTIVE_TAB, activeIndex).apply();
     }
 
     private void updateProgramId(TextView programId, Button toggle) {
@@ -136,8 +203,12 @@ public class MainActivity extends Activity {
 
     private String shareableUrl() {
         String url = activeTab == null ? null : activeTab.getUrl();
+        return isWebUrl(url) ? url : null;
+    }
+
+    private static boolean isWebUrl(String url) {
         String scheme = url == null ? null : Uri.parse(url).getScheme();
-        return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme) ? url : null;
+        return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
     }
 
     private void shareActivePage() {
@@ -188,6 +259,8 @@ public class MainActivity extends Activity {
         tab.setWebViewClient(new WebViewClient() {
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                rememberUrl(view, url);
+                saveSession();
                 if (view == activeTab) {
                     updateToolbar();
                 }
@@ -227,6 +300,7 @@ public class MainActivity extends Activity {
     private void openHomeTab() {
         WebView tab = createTab();
         tabs.add(tab);
+        tabUrls.put(tab, HOME_URL);
         showTab(tab);
         tab.loadUrl(HOME_URL);
     }
@@ -236,6 +310,7 @@ public class MainActivity extends Activity {
         page.addView(tab, new FrameLayout.LayoutParams(-1, -1));
         activeTab = tab;
         updateToolbar();
+        saveSession();
     }
 
     private void updateToolbar() {
@@ -270,10 +345,12 @@ public class MainActivity extends Activity {
             return;
         }
         tabs.remove(index);
+        tabUrls.remove(tab);
         if (tab == activeTab) {
             showTab(tabs.get(Math.max(0, index - 1)));
         } else {
             updateToolbar();
+            saveSession();
         }
         tab.destroy();
     }
@@ -284,6 +361,7 @@ public class MainActivity extends Activity {
         for (WebView tab : tabs) {
             Bundle savedTab = new Bundle();
             tab.saveState(savedTab);
+            savedTab.putString(TAB_URLS, tabUrls.get(tab));
             savedTabs.add(savedTab);
         }
         state.putParcelableArrayList(TAB_STATES, savedTabs);
@@ -304,12 +382,20 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        saveSession();
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         page.removeAllViews();
         for (WebView tab : tabs) {
             tab.destroy();
         }
         tabs.clear();
+        tabUrls.clear();
+        activeTab = null;
         super.onDestroy();
     }
 }
