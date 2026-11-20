@@ -4,4 +4,5 @@
     <string name="close_tab">Close</string>
     <string name="open_tabs">Open tabs</string>
     <string name="share">Share</string>
+    <string name="program_id" translatable="false">A59E0CA652C6EDE1</string>
 </resources>

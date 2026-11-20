@@ -9,6 +9,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.graphics.Typeface;
+import android.view.Gravity;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
@@ -18,6 +20,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 
@@ -45,7 +48,23 @@ public class MainActivity extends Activity {
         addToolbarButton(toolbar, R.string.new_tab, this::openHomeTab);
         closeButton = addToolbarButton(toolbar, R.string.close_tab, () -> closeTab(activeTab));
         shareButton = addToolbarButton(toolbar, R.string.share, this::shareActivePage);
+        TextView programId = new TextView(this);
+        programId.setText(R.string.program_id);
+        programId.setTextSize(16);
+        programId.setTypeface(Typeface.MONOSPACE);
+        programId.setGravity(Gravity.CENTER);
+        programId.setTextIsSelectable(true);
+        root.addView(programId, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         root.addView(toolbar);
+        toolbar.addOnLayoutChangeListener((view, left, top, right, bottom,
+                                           oldLeft, oldTop, oldRight, oldBottom) -> {
+            int height = bottom - top;
+            if (programId.getLayoutParams().height != height) {
+                programId.getLayoutParams().height = height;
+                programId.requestLayout();
+            }
+        });
 
         page = new FrameLayout(this);
         root.addView(page, new LinearLayout.LayoutParams(-1, 0, 1));
