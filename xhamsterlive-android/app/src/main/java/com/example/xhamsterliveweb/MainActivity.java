@@ -9,6 +9,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.graphics.Typeface;
+import android.view.Gravity;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
@@ -18,6 +20,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 
@@ -30,6 +33,7 @@ public class MainActivity extends Activity {
     private FrameLayout page;
     private Button tabPicker;
     private Button closeButton;
+    private Button shareButton;
     private WebView activeTab;
 
     @Override
@@ -40,20 +44,27 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         LinearLayout toolbar = new LinearLayout(this);
-        tabPicker = new Button(this);
-        tabPicker.setOnClickListener(view -> pickTab());
-        toolbar.addView(tabPicker, new LinearLayout.LayoutParams(0, -2, 1));
-
-        Button newButton = new Button(this);
-        newButton.setText(R.string.new_tab);
-        newButton.setOnClickListener(view -> openHomeTab());
-        toolbar.addView(newButton);
-
-        closeButton = new Button(this);
-        closeButton.setText(R.string.close_tab);
-        closeButton.setOnClickListener(view -> closeTab(activeTab));
-        toolbar.addView(closeButton);
+        tabPicker = addToolbarButton(toolbar, R.string.open_tabs, this::pickTab);
+        addToolbarButton(toolbar, R.string.new_tab, this::openHomeTab);
+        closeButton = addToolbarButton(toolbar, R.string.close_tab, () -> closeTab(activeTab));
+        shareButton = addToolbarButton(toolbar, R.string.share, this::shareActivePage);
+        TextView programId = new TextView(this);
+        programId.setText(getString(R.string.program_id_display, getString(R.string.program_id)));
+        programId.setTextSize(16);
+        programId.setTypeface(Typeface.MONOSPACE);
+        programId.setGravity(Gravity.CENTER);
+        programId.setTextIsSelectable(true);
+        root.addView(programId, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         root.addView(toolbar);
+        toolbar.addOnLayoutChangeListener((view, left, top, right, bottom,
+                                           oldLeft, oldTop, oldRight, oldBottom) -> {
+            int height = bottom - top;
+            if (programId.getLayoutParams().height != height) {
+                programId.getLayoutParams().height = height;
+                programId.requestLayout();
+            }
+        });
 
         page = new FrameLayout(this);
         root.addView(page, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -80,6 +91,39 @@ public class MainActivity extends Activity {
             }
             showTab(tabs.get(state.getInt(ACTIVE_TAB)));
         }
+    }
+
+    private Button addToolbarButton(LinearLayout toolbar, int label, Runnable action) {
+        Button button = new Button(this);
+        int sidePadding = Math.round(4 * getResources().getDisplayMetrics().density);
+        int touchHeight = Math.round(48 * getResources().getDisplayMetrics().density);
+        button.setMinimumWidth(0);
+        button.setMinWidth(0);
+        button.setMinimumHeight(touchHeight);
+        button.setPadding(sidePadding, button.getPaddingTop(), sidePadding, button.getPaddingBottom());
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setOnClickListener(view -> action.run());
+        toolbar.addView(button, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        return button;
+    }
+
+    private String shareableUrl() {
+        String url = activeTab == null ? null : activeTab.getUrl();
+        String scheme = url == null ? null : Uri.parse(url).getScheme();
+        return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme) ? url : null;
+    }
+
+    private void shareActivePage() {
+        String url = shareableUrl();
+        if (url == null) {
+            return;
+        }
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_TEXT, url);
+        startActivity(Intent.createChooser(share, getString(R.string.share)));
     }
 
     private WebView createTab() {
@@ -119,7 +163,17 @@ public class MainActivity extends Activity {
         });
         tab.setWebViewClient(new WebViewClient() {
             @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                if (view == activeTab) {
+                    updateToolbar();
+                }
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
+                if (view == activeTab) {
+                    updateToolbar();
+                }
                 view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');"
                         + "if(!m){m=document.createElement('meta');m.name='viewport';"
                         + "(document.head||document.documentElement).appendChild(m);}"
@@ -163,6 +217,7 @@ public class MainActivity extends Activity {
     private void updateToolbar() {
         tabPicker.setText(getString(R.string.tabs_count, tabs.size()));
         closeButton.setEnabled(tabs.size() > 1);
+        shareButton.setEnabled(shareableUrl() != null);
     }
 
     private void pickTab() {
