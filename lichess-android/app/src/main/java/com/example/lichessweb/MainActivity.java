@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Message;
 import android.graphics.Typeface;
 import android.view.Gravity;
+import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
@@ -20,6 +21,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 
@@ -49,28 +51,37 @@ public class MainActivity extends Activity {
         addToolbarButton(toolbar, R.string.new_tab, this::openHomeTab);
         closeButton = addToolbarButton(toolbar, R.string.close_tab, () -> closeTab(activeTab));
         shareButton = addToolbarButton(toolbar, R.string.share, this::shareActivePage);
-        programIdExpanded = state == null || state.getBoolean(PROGRAM_ID_EXPANDED, true);
-        Button programId = new Button(this, null, android.R.attr.borderlessButtonStyle);
-        programId.setAllCaps(false);
+        programIdExpanded = state != null && state.getBoolean(PROGRAM_ID_EXPANDED);
+        TextView programId = new TextView(this);
+        programId.setText(getString(R.string.program_id_display, getString(R.string.program_id)));
         programId.setTextSize(16);
         programId.setTypeface(Typeface.MONOSPACE);
         programId.setGravity(Gravity.CENTER);
-        programId.setMinHeight(0);
-        programId.setMinimumHeight(0);
-        int verticalPadding = Math.round(4 * getResources().getDisplayMetrics().density);
-        programId.setPadding(0, verticalPadding, 0, verticalPadding);
+        programId.setTextIsSelectable(true);
         root.addView(programId, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        Button toggle = new Button(this, null, android.R.attr.borderlessButtonStyle);
+        toggle.setText(R.string.program_id_toggle);
+        toggle.setTextSize(24);
+        toggle.setPadding(0, 0, 0, 0);
+        int touchSize = Math.round(48 * getResources().getDisplayMetrics().density);
+        toggle.setMinimumHeight(touchSize);
+        toolbar.addView(toggle, new LinearLayout.LayoutParams(
+                touchSize, LinearLayout.LayoutParams.MATCH_PARENT));
         root.addView(toolbar);
-        updateProgramId(programId, toolbar.getHeight());
-        programId.setOnClickListener(view -> {
+
+        updateProgramId(programId, toggle);
+        toggle.setOnClickListener(view -> {
             programIdExpanded = !programIdExpanded;
-            updateProgramId(programId, toolbar.getHeight());
+            updateProgramId(programId, toggle);
         });
         toolbar.addOnLayoutChangeListener((view, left, top, right, bottom,
                                            oldLeft, oldTop, oldRight, oldBottom) -> {
-            if (programIdExpanded && programId.getLayoutParams().height != bottom - top) {
-                updateProgramId(programId, bottom - top);
+            int height = bottom - top;
+            if (programId.getLayoutParams().height != height) {
+                programId.getLayoutParams().height = height;
+                programId.requestLayout();
             }
         });
 
@@ -101,16 +112,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void updateProgramId(Button button, int toolbarHeight) {
-        button.setText(programIdExpanded
-                ? getString(R.string.program_id_display, getString(R.string.program_id))
-                : getString(R.string.program_id_collapsed));
-        button.setContentDescription(programIdExpanded
-                ? getString(R.string.collapse_program_id, getString(R.string.program_id))
-                : getString(R.string.expand_program_id));
-        button.getLayoutParams().height = programIdExpanded && toolbarHeight > 0
-                ? toolbarHeight : LinearLayout.LayoutParams.WRAP_CONTENT;
-        button.requestLayout();
+    private void updateProgramId(TextView programId, Button toggle) {
+        programId.setVisibility(programIdExpanded ? View.VISIBLE : View.GONE);
+        toggle.setContentDescription(getString(programIdExpanded
+                ? R.string.collapse_program_id : R.string.expand_program_id));
     }
 
     private Button addToolbarButton(LinearLayout toolbar, int label, Runnable action) {
