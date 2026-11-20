@@ -15,6 +15,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
+import android.webkit.ValueCallback;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class MainActivity extends Activity {
+    private static final int PICK_UPLOAD_FILES = 1;
     private static final String HOME_URL = "https://github.com/repos";
     private static final String SESSION_PREFS = "browserSession";
     private static final String TAB_URLS = "tabUrls";
@@ -47,6 +49,8 @@ public class MainActivity extends Activity {
     private Button closeButton;
     private Button shareButton;
     private WebView activeTab;
+    private WebView filePickerTab;
+    private ValueCallback<Uri[]> filePickerCallback;
     private boolean programIdExpanded;
 
     @Override
@@ -236,6 +240,24 @@ public class MainActivity extends Activity {
 
         tab.setWebChromeClient(new WebChromeClient() {
             @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (filePickerTab != null || !tabs.contains(view)) {
+                    callback.onReceiveValue(null);
+                    return true;
+                }
+                filePickerTab = view;
+                filePickerCallback = callback;
+                try {
+                    startActivityForResult(params.createIntent(), PICK_UPLOAD_FILES);
+                } catch (ActivityNotFoundException | SecurityException unavailable) {
+                    filePickerTab = null;
+                    finishFilePicker(null);
+                }
+                return true;
+            }
+
+            @Override
             public boolean onCreateWindow(WebView opener, boolean dialog, boolean userGesture,
                                           Message resultMsg) {
                 int openerIndex = tabs.indexOf(opener);
@@ -297,6 +319,34 @@ public class MainActivity extends Activity {
         return tab;
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_UPLOAD_FILES) {
+            return;
+        }
+
+        filePickerTab = null;
+        Uri[] selectedFiles = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+        if (selectedFiles != null) {
+            for (Uri uri : selectedFiles) {
+                if (uri == null || !"content".equals(uri.getScheme())) {
+                    selectedFiles = null;
+                    break;
+                }
+            }
+        }
+        finishFilePicker(selectedFiles);
+    }
+
+    private void finishFilePicker(Uri[] selectedFiles) {
+        ValueCallback<Uri[]> callback = filePickerCallback;
+        filePickerCallback = null;
+        if (callback != null) {
+            callback.onReceiveValue(selectedFiles);
+        }
+    }
+
     private void openHomeTab() {
         WebView tab = createTab();
         tabs.add(tab);
@@ -352,6 +402,9 @@ public class MainActivity extends Activity {
             updateToolbar();
             saveSession();
         }
+        if (tab == filePickerTab) {
+            finishFilePicker(null);
+        }
         tab.destroy();
     }
 
@@ -389,6 +442,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        filePickerTab = null;
+        finishFilePicker(null);
         page.removeAllViews();
         for (WebView tab : tabs) {
             tab.destroy();
