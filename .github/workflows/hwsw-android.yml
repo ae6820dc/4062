@@ -8,7 +8,7 @@ on:
       - '.github/workflows/hwsw-android.yml'
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: hwsw-android
@@ -20,15 +20,27 @@ jobs:
           java-version: '17'
       - name: Configure Android SDK
         run: |
-          test -d "$ANDROID_HOME"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          if [[ ! -f "$ANDROID_HOME/platforms/android-36/android.jar" ||
+                ! -x "$ANDROID_HOME/build-tools/36.0.0/aapt" ]]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+          fi
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
       - name: Build APK
         run: gradle :app:assembleDebug --no-daemon
+      - name: Verify APK signature and metadata
+        run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$tools/apksigner" verify "$apk"
+          metadata=$("$tools/aapt" dump badging "$apk")
+          grep -F "package: name='com.example.hwswnews'" <<< "$metadata"
+          grep -Fx "application-label:'HWSW'" <<< "$metadata"
+          grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
+          grep -F "launchable-activity: name='com.example.hwswnews.MainActivity'" <<< "$metadata"
       - uses: actions/upload-artifact@v4
         with:
           name: HWSW-APK
           path: hwsw-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
