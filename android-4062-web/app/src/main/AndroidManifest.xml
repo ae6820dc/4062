@@ -10,6 +10,7 @@
             android:name=".MainActivity"
             android:enableOnBackInvokedCallback="false"
             android:exported="true"
+            android:resizeableActivity="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
