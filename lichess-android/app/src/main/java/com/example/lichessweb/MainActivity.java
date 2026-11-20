@@ -20,7 +20,6 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import java.util.ArrayList;
 
@@ -28,6 +27,7 @@ public class MainActivity extends Activity {
     private static final String HOME_URL = "https://lichess.org/";
     private static final String TAB_STATES = "tabStates";
     private static final String ACTIVE_TAB = "activeTab";
+    private static final String PROGRAM_ID_EXPANDED = "programIdExpanded";
 
     private final ArrayList<WebView> tabs = new ArrayList<>();
     private FrameLayout page;
@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
     private Button closeButton;
     private Button shareButton;
     private WebView activeTab;
+    private boolean programIdExpanded;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -48,21 +49,28 @@ public class MainActivity extends Activity {
         addToolbarButton(toolbar, R.string.new_tab, this::openHomeTab);
         closeButton = addToolbarButton(toolbar, R.string.close_tab, () -> closeTab(activeTab));
         shareButton = addToolbarButton(toolbar, R.string.share, this::shareActivePage);
-        TextView programId = new TextView(this);
-        programId.setText(getString(R.string.program_id_display, getString(R.string.program_id)));
+        programIdExpanded = state == null || state.getBoolean(PROGRAM_ID_EXPANDED, true);
+        Button programId = new Button(this, null, android.R.attr.borderlessButtonStyle);
+        programId.setAllCaps(false);
         programId.setTextSize(16);
         programId.setTypeface(Typeface.MONOSPACE);
         programId.setGravity(Gravity.CENTER);
-        programId.setTextIsSelectable(true);
+        programId.setMinHeight(0);
+        programId.setMinimumHeight(0);
+        int verticalPadding = Math.round(4 * getResources().getDisplayMetrics().density);
+        programId.setPadding(0, verticalPadding, 0, verticalPadding);
         root.addView(programId, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         root.addView(toolbar);
+        updateProgramId(programId, toolbar.getHeight());
+        programId.setOnClickListener(view -> {
+            programIdExpanded = !programIdExpanded;
+            updateProgramId(programId, toolbar.getHeight());
+        });
         toolbar.addOnLayoutChangeListener((view, left, top, right, bottom,
                                            oldLeft, oldTop, oldRight, oldBottom) -> {
-            int height = bottom - top;
-            if (programId.getLayoutParams().height != height) {
-                programId.getLayoutParams().height = height;
-                programId.requestLayout();
+            if (programIdExpanded && programId.getLayoutParams().height != bottom - top) {
+                updateProgramId(programId, bottom - top);
             }
         });
 
@@ -91,6 +99,18 @@ public class MainActivity extends Activity {
             }
             showTab(tabs.get(state.getInt(ACTIVE_TAB)));
         }
+    }
+
+    private void updateProgramId(Button button, int toolbarHeight) {
+        button.setText(programIdExpanded
+                ? getString(R.string.program_id_display, getString(R.string.program_id))
+                : getString(R.string.program_id_collapsed));
+        button.setContentDescription(programIdExpanded
+                ? getString(R.string.collapse_program_id, getString(R.string.program_id))
+                : getString(R.string.expand_program_id));
+        button.getLayoutParams().height = programIdExpanded && toolbarHeight > 0
+                ? toolbarHeight : LinearLayout.LayoutParams.WRAP_CONTENT;
+        button.requestLayout();
     }
 
     private Button addToolbarButton(LinearLayout toolbar, int label, Runnable action) {
@@ -263,6 +283,7 @@ public class MainActivity extends Activity {
         }
         state.putParcelableArrayList(TAB_STATES, savedTabs);
         state.putInt(ACTIVE_TAB, tabs.indexOf(activeTab));
+        state.putBoolean(PROGRAM_ID_EXPANDED, programIdExpanded);
         super.onSaveInstanceState(state);
     }
 
