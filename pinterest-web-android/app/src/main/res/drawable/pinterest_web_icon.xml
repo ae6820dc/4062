@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="@color/pinterest_web_icon_background" android:pathData="M0,0H108V108H0Z" />
+    <group>
+        <path android:fillColor="#FFF3E7"
+            android:pathData="M54,26C40.7,26 30,36.7 30,50C30,68 54,86 54,86S78,68 78,50C78,36.7 67.3,26 54,26Z" />
+        <path android:fillColor="#C6193B"
+            android:pathData="M54,40a10,10 0,1 0,0 20a10,10 0,1 0,0 -20Z" />
+    </group>
+</vector>
