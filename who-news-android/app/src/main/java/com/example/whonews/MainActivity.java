@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
         root.addView(programId, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        Button toggle = new Button(this, null, android.R.attr.borderlessButtonStyle);
+        Button toggle = new Button(this);
         toggle.setText(R.string.program_id_toggle);
         toggle.setTextSize(24);
         toggle.setPadding(0, 0, 0, 0);
