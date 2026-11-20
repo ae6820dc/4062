@@ -49,7 +49,7 @@ public class MainActivity extends Activity {
         closeButton = addToolbarButton(toolbar, R.string.close_tab, () -> closeTab(activeTab));
         shareButton = addToolbarButton(toolbar, R.string.share, this::shareActivePage);
         TextView programId = new TextView(this);
-        programId.setText(R.string.program_id);
+        programId.setText(getString(R.string.program_id_display, getString(R.string.program_id)));
         programId.setTextSize(16);
         programId.setTypeface(Typeface.MONOSPACE);
         programId.setGravity(Gravity.CENTER);

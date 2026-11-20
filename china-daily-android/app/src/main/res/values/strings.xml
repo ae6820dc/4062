@@ -5,4 +5,5 @@
     <string name="open_tabs">Open tabs</string>
     <string name="share">Share</string>
     <string name="program_id" translatable="false">A59E0CA652C6EDE1</string>
+    <string name="program_id_display">Program ID : %1$s</string>
 </resources>
