@@ -4,7 +4,7 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path android:fillColor="#0B1935"
-        android:pathData="M26,4H82Q104,4 104,26V82Q104,104 82,104H26Q4,104 4,82V26Q4,4 26,4Z" />
+        android:pathData="M0,0H108V108H0Z" />
     <path android:fillColor="#172C50"
         android:pathData="M28,10H80Q98,10 98,28V80Q98,98 80,98H28Q10,98 10,80V28Q10,10 28,10Z" />
     <group android:pivotX="54" android:pivotY="54" android:rotation="-60">
