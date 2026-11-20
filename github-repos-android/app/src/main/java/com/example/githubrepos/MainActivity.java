@@ -3,6 +3,7 @@ package com.example.githubrepos;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Insets;
@@ -25,6 +26,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -249,7 +251,12 @@ public class MainActivity extends Activity {
                 filePickerTab = view;
                 filePickerCallback = callback;
                 try {
-                    startActivityForResult(params.createIntent(), PICK_UPLOAD_FILES);
+                    Intent picker = params.createIntent();
+                    picker.setAction(Intent.ACTION_OPEN_DOCUMENT);
+                    picker.addCategory(Intent.CATEGORY_OPENABLE);
+                    picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                            params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                    startActivityForResult(picker, PICK_UPLOAD_FILES);
                 } catch (ActivityNotFoundException | SecurityException unavailable) {
                     filePickerTab = null;
                     finishFilePicker(null);
@@ -327,16 +334,40 @@ public class MainActivity extends Activity {
         }
 
         filePickerTab = null;
-        Uri[] selectedFiles = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
-        if (selectedFiles != null) {
-            for (Uri uri : selectedFiles) {
-                if (uri == null || !"content".equals(uri.getScheme())) {
-                    selectedFiles = null;
-                    break;
-                }
-            }
+        if (filePickerCallback == null) {
+            return;
         }
+        Uri[] selectedFiles = resultCode == RESULT_OK ? selectedUploadFiles(data) : null;
         finishFilePicker(selectedFiles);
+        if (resultCode == RESULT_OK && selectedFiles == null) {
+            Toast.makeText(this, R.string.upload_selection_error, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private static Uri[] selectedUploadFiles(Intent data) {
+        if (data == null) {
+            return null;
+        }
+
+        ClipData items = data.getClipData();
+        if (items == null || items.getItemCount() == 0) {
+            Uri uri = data.getData();
+            return isUploadDocument(uri) ? new Uri[]{uri} : null;
+        }
+
+        Uri[] files = new Uri[items.getItemCount()];
+        for (int i = 0; i < files.length; i++) {
+            Uri uri = items.getItemAt(i).getUri();
+            if (!isUploadDocument(uri)) {
+                return null;
+            }
+            files[i] = uri;
+        }
+        return files;
+    }
+
+    private static boolean isUploadDocument(Uri uri) {
+        return uri != null && "content".equals(uri.getScheme());
     }
 
     private void finishFilePicker(Uri[] selectedFiles) {
