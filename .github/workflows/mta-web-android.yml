@@ -1,4 +1,4 @@
-name: Build MTA Web APK
+name: Build MTA APK
 on:
   workflow_dispatch:
   push:
@@ -36,7 +36,7 @@ jobs:
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
           grep -F "package: name='io.github.ae6820dc.mtaweb'" <<< "$metadata"
-          grep -Fx "application-label:'MTA Web'" <<< "$metadata"
+          grep -Fx "application-label:'MTA'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='io.github.ae6820dc.mtaweb.MainActivity'" <<< "$metadata"
       - uses: actions/upload-artifact@v4
