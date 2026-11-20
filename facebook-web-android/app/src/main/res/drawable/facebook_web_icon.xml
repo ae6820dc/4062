@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="@color/facebook_web_icon_background" android:pathData="M0,0H108V108H0Z" />
+    <group>
+        <path android:fillColor="#91CFFF"
+            android:pathData="M47,47H80Q85,47 85,52V72Q85,77 80,77H77V85L65,77H47Q42,77 42,72V52Q42,47 47,47Z" />
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M28,31H65Q71,31 71,37V58Q71,64 65,64H43L32,73V64H28Q22,64 22,58V37Q22,31 28,31Z" />
+        <path android:strokeColor="#235487" android:strokeWidth="3.5" android:strokeLineCap="round"
+            android:pathData="M33,43H60M33,52H53" />
+    </group>
+</vector>
