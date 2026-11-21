@@ -42,6 +42,7 @@ public class RefreshTestRunner extends Instrumentation {
         sendStatus(1, status);
         Bundle result = new Bundle();
         try {
+            verifyDownloadAddress();
             verifyRefresh();
             result.putString("stream", "\nActive-tab reload, scrolling and zoom checks passed.\n");
             sendStatus(0, status);
@@ -53,6 +54,20 @@ public class RefreshTestRunner extends Instrumentation {
             result.putString("stream", trace);
             finish(Activity.RESULT_CANCELED, result);
         }
+    }
+
+    private static void verifyDownloadAddress() {
+        String page = "https://github.com/ae6820dc/4062/blob/main/apk/8/test%20file.apk";
+        String raw = "https://github.com/ae6820dc/4062/raw/main/apk/8/test%20file.apk";
+        check(raw.equals(WebDownload.resolveAddress("blob:https://github.com/123", page)),
+                "GitHub blob must use the repository file download");
+        check(raw.equals(WebDownload.resolveAddress(raw, page)),
+                "Existing HTTPS downloads must remain unchanged");
+        check(WebDownload.resolveAddress("blob:https://example.org/123", page) == null,
+                "An unrelated site's blob must be rejected");
+        check(WebDownload.resolveAddress("blob:https://github.com/123",
+                "https://example.org/owner/repo/blob/main/file.apk") == null,
+                "The page must be a GitHub repository file");
     }
 
     private void verifyRefresh() {

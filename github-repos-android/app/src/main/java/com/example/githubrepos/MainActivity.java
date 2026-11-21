@@ -311,7 +311,7 @@ public class MainActivity extends Activity {
     private WebView createTab() {
         WebView tab = new RefreshableWebView();
         tab.setDownloadListener((url, agent, disposition, mime, length) ->
-                chooseDownloadDestination(url, agent, disposition, mime));
+                chooseDownloadDestination(tab, url, agent, disposition, mime));
         WebSettings settings = tab.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -408,17 +408,18 @@ public class MainActivity extends Activity {
         return tab;
     }
 
-    private void chooseDownloadDestination(String url, String agent, String disposition, String mime) {
+    private void chooseDownloadDestination(WebView tab, String url, String agent, String disposition, String mime) {
         if (downloadUrl != null) return;
-        if (url == null || !"https".equalsIgnoreCase(Uri.parse(url).getScheme())) {
+        String address = WebDownload.resolveAddress(url, tab.getUrl());
+        if (address == null) {
             Toast.makeText(this, R.string.download_unsupported, Toast.LENGTH_LONG).show();
             return;
         }
 
         String type = mime == null || !mime.contains("/") ? "application/octet-stream" : mime;
-        String name = URLUtil.guessFileName(url, disposition, type)
+        String name = URLUtil.guessFileName(address, disposition, type)
                 .replace('/', '_').replace('\\', '_');
-        downloadUrl = url;
+        downloadUrl = address;
         downloadAgent = agent;
         Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)

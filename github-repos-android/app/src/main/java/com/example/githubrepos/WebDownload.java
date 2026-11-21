@@ -9,10 +9,41 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.net.ssl.HttpsURLConnection;
 
 final class WebDownload {
+    private static final Pattern GITHUB_FILE = Pattern.compile(
+            "^/([A-Za-z0-9-]+/[A-Za-z0-9_.-]+)/blob/(.+/.+)$");
+
     private WebDownload() {}
+
+    static String resolveAddress(String address, String pageAddress) {
+        if (address == null) return null;
+        try {
+            URI requested = new URI(address);
+            if ("https".equalsIgnoreCase(requested.getScheme()) && requested.getHost() != null
+                    && requested.getRawUserInfo() == null) return address;
+            if (!"blob".equalsIgnoreCase(requested.getScheme()) || pageAddress == null
+                    || !githubOrigin(new URI(requested.getRawSchemeSpecificPart()))) return null;
+            URI page = new URI(pageAddress);
+            if (!githubOrigin(page)) return null;
+            Matcher path = GITHUB_FILE.matcher(page.getRawPath());
+            if (!path.matches()) return null;
+            // GitHub serves the repository file at /raw/ while keeping the ref and filename.
+            return "https://github.com/" + path.group(1) + "/raw/" + path.group(2);
+        } catch (URISyntaxException invalidAddress) {
+            return null;
+        }
+    }
+
+    private static boolean githubOrigin(URI uri) {
+        return "https".equalsIgnoreCase(uri.getScheme()) && "github.com".equalsIgnoreCase(uri.getHost())
+                && uri.getRawUserInfo() == null && (uri.getPort() == -1 || uri.getPort() == 443);
+    }
 
     static boolean save(ContentResolver resolver, Uri destination, String address, String userAgent) {
         HttpsURLConnection connection = null;
