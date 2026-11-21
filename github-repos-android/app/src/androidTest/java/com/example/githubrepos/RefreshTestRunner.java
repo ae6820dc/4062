@@ -125,14 +125,12 @@ public class RefreshTestRunner extends Instrumentation {
     }
 
     private void swipe(WebView tab, float from, float to) {
-        int[] location = new int[2];
         int[] size = new int[2];
         runOnMainSync(() -> {
-            tab.getLocationOnScreen(location);
             size[0] = tab.getWidth();
             size[1] = tab.getHeight();
         });
-        float x = location[0] + size[0] / 2f;
+        float x = size[0] / 2f;
         long down = SystemClock.uptimeMillis();
         for (int step = 0; step <= 12; step++) {
             if (step > 0) {
@@ -140,12 +138,12 @@ public class RefreshTestRunner extends Instrumentation {
             }
             int action = step == 0 ? MotionEvent.ACTION_DOWN
                     : step == 12 ? MotionEvent.ACTION_UP : MotionEvent.ACTION_MOVE;
-            float y = location[1] + size[1] * (from + (to - from) * step / 12);
+            float y = size[1] * (from + (to - from) * step / 12);
             MotionEvent event = MotionEvent.obtain(down, SystemClock.uptimeMillis(),
                     action, x, y, 0);
             event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
             try {
-                sendPointerSync(event);
+                runOnMainSync(() -> tab.dispatchTouchEvent(event));
             } finally {
                 event.recycle();
             }
