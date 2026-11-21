@@ -1,10 +1,10 @@
-name: Build MTA APK
+name: Build MTA Web APK
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/mta-web-android.yml'
+      - '.github/workflows/build-mta-web-apk.yml'
       - 'mta-web-android/**'
 
 jobs:
