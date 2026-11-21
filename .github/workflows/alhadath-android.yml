@@ -40,7 +40,7 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
-          script: |
+          script: >-
             cd alhadath-android &&
             gradle :app:assembleDebugAndroidTest --no-daemon &&
             adb install app/build/outputs/apk/debug/app-debug.apk &&
