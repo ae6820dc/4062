@@ -11,8 +11,8 @@ android {
         applicationId 'com.example.githubrepos'
         minSdk 23
         targetSdk 36
-        versionCode 5
+        versionCode 6
         testInstrumentationRunner 'com.example.githubrepos.RefreshTestRunner'
-        versionName '1.4'
+        versionName '1.5'
     }
 }
