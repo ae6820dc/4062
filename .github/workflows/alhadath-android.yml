@@ -40,7 +40,15 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
-          script: cd alhadath-android && gradle :app:connectedDebugAndroidTest --no-daemon
+          script: |
+            cd alhadath-android &&
+            gradle :app:assembleDebugAndroidTest --no-daemon &&
+            adb install app/build/outputs/apk/debug/app-debug.apk &&
+            adb install -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk &&
+            adb shell am instrument -w -r com.example.alhadathweb.test/com.example.alhadathweb.RefreshTestRunner > refresh-test.log &&
+            cat refresh-test.log &&
+            grep -Fx 'INSTRUMENTATION_STATUS_CODE: 0' refresh-test.log &&
+            grep -Fx 'INSTRUMENTATION_CODE: -1' refresh-test.log
       - name: Verify APK signature and metadata
         working-directory: alhadath-android
         run: |
