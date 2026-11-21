@@ -86,13 +86,16 @@ public class RefreshTestRunner extends Instrumentation {
         awaitLoads("active tab rendered after pull", secondFinishes, 2);
         check(firstLoads.get() == 1, "Background tab was reloaded");
 
-        runOnMainSync(() -> {
-            active.scrollTo(0, 900);
-            check(active.getScrollY() > 0, "Fixture must be scrolled before the second swipe");
-        });
+        swipe(active, 0.78f, 0.25f);
+        SystemClock.sleep(750);
+        runOnMainSync(() -> check(active.getScrollY() > 0,
+                "An upward swipe must scroll the fixture"));
+        check(secondLoads.get() == 2, "An upward swipe unexpectedly reloaded the fixture");
+
         swipe(active, 0.30f, 0.58f);
         SystemClock.sleep(500);
-        check(secondLoads.get() == 2, "A pull inside a scrolled page reloaded it");
+        check(secondLoads.get() == 2,
+                "A pull inside a scrolled page reloaded it (" + secondLoads.get() + " requests)");
         runOnMainSync(() -> check(active.getSettings().getBuiltInZoomControls() && active.zoomIn(),
                 "WebView zoom is unavailable"));
     }
