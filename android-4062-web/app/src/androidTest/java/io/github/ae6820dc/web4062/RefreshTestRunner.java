@@ -33,13 +33,24 @@ public class RefreshTestRunner extends Instrumentation {
 
     @Override
     public void onStart() {
+        Bundle status = new Bundle();
+        status.putString("id", "RefreshTestRunner");
+        status.putString("class", getClass().getName());
+        status.putString("test", "verifyRefresh");
+        status.putInt("numtests", 1);
+        status.putInt("current", 1);
+        sendStatus(1, status);
         Bundle result = new Bundle();
         try {
             verifyRefresh();
             result.putString("stream", "\nActive-tab reload, scrolling and zoom checks passed.\n");
+            sendStatus(0, status);
             finish(Activity.RESULT_OK, result);
         } catch (Throwable failure) {
-            result.putString("stream", android.util.Log.getStackTraceString(failure));
+            String trace = android.util.Log.getStackTraceString(failure);
+            status.putString("stack", trace);
+            sendStatus(-2, status);
+            result.putString("stream", trace);
             finish(Activity.RESULT_CANCELED, result);
         }
     }
@@ -51,28 +62,34 @@ public class RefreshTestRunner extends Instrumentation {
         WebView[] tabs = new WebView[2];
         AtomicInteger firstLoads = new AtomicInteger();
         AtomicInteger secondLoads = new AtomicInteger();
+        AtomicInteger secondFinishes = new AtomicInteger();
         runOnMainSync(() -> {
             ViewGroup content = activity.findViewById(android.R.id.content);
             ViewGroup root = (ViewGroup) content.getChildAt(0);
             ViewGroup toolbar = (ViewGroup) root.getChildAt(1);
             ViewGroup page = (ViewGroup) root.getChildAt(2);
             tabs[0] = (WebView) page.getChildAt(0);
-            loadFixture(tabs[0], FIRST, firstLoads);
+            loadFixture(tabs[0], FIRST, firstLoads, new AtomicInteger());
             ((Button) toolbar.getChildAt(1)).performClick();
             tabs[1] = (WebView) page.getChildAt(0);
             check(tabs[0] != tabs[1], "New tab must use a separate WebView");
-            loadFixture(tabs[1], SECOND, secondLoads);
+            loadFixture(tabs[1], SECOND, secondLoads, secondFinishes);
         });
         awaitLoads("first tab", firstLoads, 1);
         awaitLoads("second tab", secondLoads, 1);
+        awaitLoads("second tab rendered", secondFinishes, 1);
         WebView active = tabs[1];
         waitForIdleSync();
 
         swipe(active, 0.30f, 0.58f);
         awaitLoads("active tab after pull", secondLoads, 2);
+        awaitLoads("active tab rendered after pull", secondFinishes, 2);
         check(firstLoads.get() == 1, "Background tab was reloaded");
 
-        runOnMainSync(() -> active.scrollTo(0, 900));
+        runOnMainSync(() -> {
+            active.scrollTo(0, 900);
+            check(active.getScrollY() > 0, "Fixture must be scrolled before the second swipe");
+        });
         swipe(active, 0.30f, 0.58f);
         SystemClock.sleep(500);
         check(secondLoads.get() == 2, "A pull inside a scrolled page reloaded it");
@@ -80,8 +97,16 @@ public class RefreshTestRunner extends Instrumentation {
                 "WebView zoom is unavailable"));
     }
 
-    private static void loadFixture(WebView tab, String url, AtomicInteger loads) {
+    private static void loadFixture(WebView tab, String url, AtomicInteger loads,
+                                    AtomicInteger finishes) {
         tab.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String finishedUrl) {
+                if (url.equals(finishedUrl)) {
+                    finishes.incrementAndGet();
+                }
+            }
+
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 if (!url.equals(request.getUrl().toString())) {
