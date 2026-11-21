@@ -35,12 +35,25 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='io.github.ae6820dc.web4062'" <<< "$metadata"
+          grep -F "package: name='io.github.ae6820dc.web4062' versionCode='3' versionName='1.2'" <<< "$metadata"
           grep -Fx "application-label:'4062'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='io.github.ae6820dc.web4062.MainActivity'" <<< "$metadata"
+      - name: Prepare versioned APK and compare signing certificates
+        run: |
+          mkdir -p 7
+          cp android-4062-web/app/build/outputs/apk/debug/app-debug.apk 7/4062-multitab-1.2.apk
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          signer() {
+            "$apksigner" verify --print-certs "$1" | grep -F 'certificate SHA-256 digest:'
+          }
+          original=$(signer apk/6/4062-multitab-1.1.apk)
+          current=$(signer 7/4062-multitab-1.2.apk)
+          if [[ "$original" != "$current" ]]; then
+            echo "::warning::APK signing certificates differ. Android will require a fresh install."
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: 4062-APK
-          path: android-4062-web/app/build/outputs/apk/debug/app-debug.apk
+          name: 4062-multitab-1.2
+          path: 7/4062-multitab-1.2.apk
           if-no-files-found: error

@@ -13,7 +13,9 @@ import android.os.Bundle;
 import android.os.Message;
 import android.graphics.Typeface;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
@@ -228,8 +230,77 @@ public class MainActivity extends Activity {
         startActivity(Intent.createChooser(share, getString(R.string.share)));
     }
 
+    private final class RefreshableWebView extends WebView {
+        private final int touchSlop;
+        private final float refreshDistance;
+        private boolean trackingPull;
+        private boolean startedMoving;
+        private float startX;
+        private float startY;
+
+        RefreshableWebView() {
+            super(MainActivity.this);
+            touchSlop = ViewConfiguration.get(MainActivity.this).getScaledTouchSlop();
+            refreshDistance = 80 * getResources().getDisplayMetrics().density;
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent event) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                trackingPull = this == activeTab && !canScrollVertically(-1);
+                startedMoving = false;
+                startX = event.getX();
+                startY = event.getY();
+            }
+
+            if (event.getPointerCount() != 1 || action == MotionEvent.ACTION_CANCEL) {
+                trackingPull = false;
+            }
+            float distance = event.getY() - startY;
+            if (trackingPull && (action == MotionEvent.ACTION_MOVE
+                    || action == MotionEvent.ACTION_UP)) {
+                float sideways = Math.abs(event.getX() - startX);
+                if (canScrollVertically(-1) || distance < -touchSlop
+                        || (sideways > touchSlop && sideways >= distance)
+                        || (!startedMoving && event.getEventTime() - event.getDownTime()
+                                >= ViewConfiguration.getLongPressTimeout())) {
+                    trackingPull = false;
+                } else if (distance > touchSlop) {
+                    startedMoving = true;
+                }
+            }
+
+            // Deliver the full gesture to WebView, including pinch and page touch events.
+            boolean handled = super.dispatchTouchEvent(event);
+            if (action == MotionEvent.ACTION_UP) {
+                boolean refresh = trackingPull && distance >= refreshDistance
+                        && this == activeTab && !canScrollVertically(-1) && isWebUrl(getUrl());
+                trackingPull = false;
+                if (refresh) {
+                    reload();
+                }
+            }
+            return handled;
+        }
+
+        @Override
+        protected void onScrollChanged(int x, int y, int oldX, int oldY) {
+            if (x != oldX || y != oldY) {
+                trackingPull = false;
+            }
+            super.onScrollChanged(x, y, oldX, oldY);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            trackingPull = false;
+            super.onDetachedFromWindow();
+        }
+    }
+
     private WebView createTab() {
-        WebView tab = new WebView(this);
+        WebView tab = new RefreshableWebView();
         WebSettings settings = tab.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
