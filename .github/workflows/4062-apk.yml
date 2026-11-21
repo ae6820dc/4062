@@ -40,7 +40,15 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
-          script: cd android-4062-web && gradle :app:connectedDebugAndroidTest --no-daemon
+          script: >-
+            cd android-4062-web &&
+            gradle :app:assembleDebugAndroidTest --no-daemon &&
+            adb install app/build/outputs/apk/debug/app-debug.apk &&
+            adb install -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk &&
+            adb shell am instrument -w -r io.github.ae6820dc.web4062.test/io.github.ae6820dc.web4062.RefreshTestRunner > refresh-test.log &&
+            cat refresh-test.log &&
+            grep -Fx 'INSTRUMENTATION_STATUS_CODE: 0' refresh-test.log &&
+            grep -Fx 'INSTRUMENTATION_CODE: -1' refresh-test.log
       - name: Verify APK signature and metadata
         working-directory: android-4062-web
         run: |
@@ -48,25 +56,25 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='io.github.ae6820dc.web4062' versionCode='4' versionName='1.2'" <<< "$metadata"
+          grep -F "package: name='io.github.ae6820dc.web4062' versionCode='5' versionName='1.3'" <<< "$metadata"
           grep -Fx "application-label:'4062'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='io.github.ae6820dc.web4062.MainActivity'" <<< "$metadata"
       - name: Prepare versioned APK and compare signing certificates
         run: |
-          mkdir -p 7
-          cp android-4062-web/app/build/outputs/apk/debug/app-debug.apk 7/4062-multitab-1.2.apk
+          mkdir -p apk/8
+          cp android-4062-web/app/build/outputs/apk/debug/app-debug.apk apk/8/4062-multitab-1.3.apk
           apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           signer() {
             "$apksigner" verify --print-certs "$1" | grep -F 'certificate SHA-256 digest:'
           }
-          original=$(signer apk/6/4062-multitab-1.1.apk)
-          current=$(signer 7/4062-multitab-1.2.apk)
+          original=$(signer apk/7/4062-multitab-1.2.apk)
+          current=$(signer apk/8/4062-multitab-1.3.apk)
           if [[ "$original" != "$current" ]]; then
             echo "::warning::APK signing certificates differ. Android will require a fresh install."
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: 4062-multitab-1.2
-          path: 7/4062-multitab-1.2.apk
+          name: 4062-multitab-1.3
+          path: apk/8/4062-multitab-1.3.apk
           if-no-files-found: error

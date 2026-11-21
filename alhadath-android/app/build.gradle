@@ -11,8 +11,8 @@ android {
         applicationId 'com.example.alhadathweb'
         minSdk 23
         targetSdk 36
-        versionCode 6
+        versionCode 7
         testInstrumentationRunner 'com.example.alhadathweb.RefreshTestRunner'
-        versionName '1.5'
+        versionName '1.6'
     }
 }

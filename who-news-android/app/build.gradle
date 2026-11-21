@@ -11,8 +11,8 @@ android {
         applicationId 'com.example.whonews'
         minSdk 23
         targetSdk 36
-        versionCode 7
+        versionCode 8
         testInstrumentationRunner 'com.example.whonews.RefreshTestRunner'
-        versionName '1.6'
+        versionName '1.7'
     }
 }

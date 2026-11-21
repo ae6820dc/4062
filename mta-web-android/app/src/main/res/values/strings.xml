@@ -11,4 +11,8 @@
     <string name="expand_program_id">Expand Program ID</string>
     <string name="upload_selection_error">The selected files could not be opened. Choose them again in Files.</string>
     <string name="refreshing_page">Refreshing page…</string>
+    <string name="download_unsupported">This download link is unsupported.</string>
+    <string name="download_started">Downloading file…</string>
+    <string name="download_saved">File saved.</string>
+    <string name="download_failed">Could not save the file.</string>
 </resources>

@@ -56,25 +56,25 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='com.example.mitnews' versionCode='8' versionName='1.7'" <<< "$metadata"
+          grep -F "package: name='com.example.mitnews' versionCode='9' versionName='1.8'" <<< "$metadata"
           grep -Fx "application-label:'MIT News'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='com.example.mitnews.MainActivity'" <<< "$metadata"
       - name: Prepare versioned APK and compare signing certificates
         run: |
-          mkdir -p 7
-          cp mit-news-android/app/build/outputs/apk/debug/app-debug.apk 7/mit-news-multitab-1.7.apk
+          mkdir -p apk/8
+          cp mit-news-android/app/build/outputs/apk/debug/app-debug.apk apk/8/mit-news-multitab-1.8.apk
           apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           signer() {
             "$apksigner" verify --print-certs "$1" | grep -F 'certificate SHA-256 digest:'
           }
-          original=$(signer apk/6/mit-news-multitab-1.6.apk)
-          current=$(signer 7/mit-news-multitab-1.7.apk)
+          original=$(signer apk/7/mit-news-multitab-1.7.apk)
+          current=$(signer apk/8/mit-news-multitab-1.8.apk)
           if [[ "$original" != "$current" ]]; then
             echo "::warning::APK signing certificates differ. Android will require a fresh install."
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: mit-news-multitab-1.7
-          path: 7/mit-news-multitab-1.7.apk
+          name: mit-news-multitab-1.8
+          path: apk/8/mit-news-multitab-1.8.apk
           if-no-files-found: error

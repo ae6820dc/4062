@@ -11,8 +11,8 @@ android {
         applicationId 'io.github.ae6820dc.scienceweb'
         minSdk 23
         targetSdk 36
-        versionCode 5
+        versionCode 6
         testInstrumentationRunner 'io.github.ae6820dc.scienceweb.RefreshTestRunner'
-        versionName '1.4'
+        versionName '1.5'
     }
 }

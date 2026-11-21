@@ -56,25 +56,25 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='com.example.hwswnews' versionCode='6' versionName='1.5'" <<< "$metadata"
+          grep -F "package: name='com.example.hwswnews' versionCode='7' versionName='1.6'" <<< "$metadata"
           grep -Fx "application-label:'HWSW'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='com.example.hwswnews.MainActivity'" <<< "$metadata"
       - name: Prepare versioned APK and compare signing certificates
         run: |
-          mkdir -p 7
-          cp hwsw-android/app/build/outputs/apk/debug/app-debug.apk 7/hwsw-multitab-1.5.apk
+          mkdir -p apk/8
+          cp hwsw-android/app/build/outputs/apk/debug/app-debug.apk apk/8/hwsw-multitab-1.6.apk
           apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           signer() {
             "$apksigner" verify --print-certs "$1" | grep -F 'certificate SHA-256 digest:'
           }
-          original=$(signer apk/6/hwsw-multitab-1.4.apk)
-          current=$(signer 7/hwsw-multitab-1.5.apk)
+          original=$(signer apk/7/hwsw-multitab-1.5.apk)
+          current=$(signer apk/8/hwsw-multitab-1.6.apk)
           if [[ "$original" != "$current" ]]; then
             echo "::warning::APK signing certificates differ. Android will require a fresh install."
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: hwsw-multitab-1.5
-          path: 7/hwsw-multitab-1.5.apk
+          name: hwsw-multitab-1.6
+          path: apk/8/hwsw-multitab-1.6.apk
           if-no-files-found: error

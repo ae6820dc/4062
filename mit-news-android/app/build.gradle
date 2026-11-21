@@ -11,8 +11,8 @@ android {
         applicationId 'com.example.mitnews'
         minSdk 23
         targetSdk 36
-        versionCode 8
+        versionCode 9
         testInstrumentationRunner 'com.example.mitnews.RefreshTestRunner'
-        versionName '1.7'
+        versionName '1.8'
     }
 }

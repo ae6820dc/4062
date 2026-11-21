@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowInsets;
 import android.webkit.CookieManager;
+import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 
 public class MainActivity extends Activity {
     private static final int PICK_UPLOAD_FILES = 1;
+    private static final int SAVE_DOWNLOAD = 2;
     private static final String HOME_URL = "https://ae6820dc.github.io/4062/index.html";
     private static final String SESSION_PREFS = "browserSession";
     private static final String TAB_URLS = "tabUrls";
@@ -56,10 +58,15 @@ public class MainActivity extends Activity {
     private WebView filePickerTab;
     private ValueCallback<Uri[]> filePickerCallback;
     private boolean programIdExpanded;
+    private String downloadUrl, downloadAgent;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) {
+            downloadUrl = state.getString("downloadUrl");
+            downloadAgent = state.getString("downloadAgent");
+        }
         CookieManager.getInstance().setAcceptCookie(true);
         sessionPrefs = getSharedPreferences(SESSION_PREFS, MODE_PRIVATE);
 
@@ -303,6 +310,8 @@ public class MainActivity extends Activity {
 
     private WebView createTab() {
         WebView tab = new RefreshableWebView();
+        tab.setDownloadListener((url, agent, disposition, mime, length) ->
+                chooseDownloadDestination(tab, url, agent, disposition, mime));
         WebSettings settings = tab.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -399,9 +408,55 @@ public class MainActivity extends Activity {
         return tab;
     }
 
+    private void chooseDownloadDestination(WebView tab, String url, String agent, String disposition, String mime) {
+        if (downloadUrl != null) return;
+        String address = WebDownload.resolveAddress(url, tab.getUrl());
+        if (address == null) {
+            Toast.makeText(this, R.string.download_unsupported, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        String type = mime == null || !mime.contains("/") ? "application/octet-stream" : mime;
+        String name = URLUtil.guessFileName(address, disposition, type)
+                .replace('/', '_').replace('\\', '_');
+        downloadUrl = address;
+        downloadAgent = agent;
+        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(type)
+                .putExtra(Intent.EXTRA_TITLE, name);
+        try {
+            startActivityForResult(picker, SAVE_DOWNLOAD);
+        } catch (ActivityNotFoundException | SecurityException unavailable) {
+            downloadUrl = downloadAgent = null;
+            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void saveDownload(int resultCode, Intent data) {
+        String url = downloadUrl;
+        String agent = downloadAgent;
+        downloadUrl = downloadAgent = null;
+        Uri destination = data == null ? null : data.getData();
+        if (resultCode != RESULT_OK || url == null || !isUploadDocument(destination)) return;
+
+        android.content.Context app = getApplicationContext();
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        Toast.makeText(app, R.string.download_started, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            boolean saved = WebDownload.save(app.getContentResolver(), destination, url, agent);
+            ui.post(() -> Toast.makeText(app, saved ? R.string.download_saved : R.string.download_failed,
+                    Toast.LENGTH_LONG).show());
+        }, "GitHub Repos download").start();
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SAVE_DOWNLOAD) {
+            saveDownload(resultCode, data);
+            return;
+        }
         if (requestCode != PICK_UPLOAD_FILES) {
             return;
         }
@@ -524,6 +579,8 @@ public class MainActivity extends Activity {
         state.putParcelableArrayList(TAB_STATES, savedTabs);
         state.putInt(ACTIVE_TAB, tabs.indexOf(activeTab));
         state.putBoolean(PROGRAM_ID_EXPANDED, programIdExpanded);
+        state.putString("downloadUrl", downloadUrl);
+        state.putString("downloadAgent", downloadAgent);
         super.onSaveInstanceState(state);
     }
 

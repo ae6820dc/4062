@@ -11,8 +11,8 @@ android {
         applicationId 'com.example.chinadailycn'
         minSdk 23
         targetSdk 36
-        versionCode 9
+        versionCode 10
         testInstrumentationRunner 'com.example.chinadailycn.RefreshTestRunner'
-        versionName '1.8'
+        versionName '1.9'
     }
 }

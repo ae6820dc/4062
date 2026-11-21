@@ -1,3 +1,7 @@
 <resources>
     <string name="refreshing_page">Oldal frissítése…</string>
+    <string name="download_unsupported">Ez a letöltési hivatkozás nem támogatott.</string>
+    <string name="download_started">Fájl letöltése…</string>
+    <string name="download_saved">Fájl mentve.</string>
+    <string name="download_failed">Nem sikerült menteni a fájlt.</string>
 </resources>

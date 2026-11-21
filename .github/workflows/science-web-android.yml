@@ -56,25 +56,25 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='io.github.ae6820dc.scienceweb' versionCode='5' versionName='1.4'" <<< "$metadata"
+          grep -F "package: name='io.github.ae6820dc.scienceweb' versionCode='6' versionName='1.5'" <<< "$metadata"
           grep -Fx "application-label:'Science Web'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='io.github.ae6820dc.scienceweb.MainActivity'" <<< "$metadata"
       - name: Prepare versioned APK and compare signing certificates
         run: |
-          mkdir -p 7
-          cp science-web-android/app/build/outputs/apk/debug/app-debug.apk 7/science-web-multitab-1.4.apk
+          mkdir -p apk/8
+          cp science-web-android/app/build/outputs/apk/debug/app-debug.apk apk/8/science-web-multitab-1.5.apk
           apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           signer() {
             "$apksigner" verify --print-certs "$1" | grep -F 'certificate SHA-256 digest:'
           }
-          original=$(signer apk/6/science-web-multitab-1.3.apk)
-          current=$(signer 7/science-web-multitab-1.4.apk)
+          original=$(signer apk/7/science-web-multitab-1.4.apk)
+          current=$(signer apk/8/science-web-multitab-1.5.apk)
           if [[ "$original" != "$current" ]]; then
             echo "::warning::APK signing certificates differ. Android will require a fresh install."
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: science-web-multitab-1.4
-          path: 7/science-web-multitab-1.4.apk
+          name: science-web-multitab-1.5
+          path: apk/8/science-web-multitab-1.5.apk
           if-no-files-found: error
