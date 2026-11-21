@@ -11,7 +11,8 @@ android {
         applicationId 'com.example.xhamsterliveweb'
         minSdk 23
         targetSdk 36
-        versionCode 7
-        versionName '1.6'
+        versionCode 8
+        testInstrumentationRunner 'com.example.xhamsterliveweb.RefreshTestRunner'
+        versionName '1.7'
     }
 }
