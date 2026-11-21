@@ -28,6 +28,19 @@ jobs:
       - name: Build APK
         working-directory: android-4062-web
         run: gradle :app:assembleDebug --no-daemon
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify touch refresh in Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          script: cd android-4062-web && gradle :app:connectedDebugAndroidTest --no-daemon
       - name: Verify APK signature and metadata
         working-directory: android-4062-web
         run: |
@@ -35,7 +48,7 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='io.github.ae6820dc.web4062' versionCode='3' versionName='1.2'" <<< "$metadata"
+          grep -F "package: name='io.github.ae6820dc.web4062' versionCode='4' versionName='1.2'" <<< "$metadata"
           grep -Fx "application-label:'4062'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='io.github.ae6820dc.web4062.MainActivity'" <<< "$metadata"

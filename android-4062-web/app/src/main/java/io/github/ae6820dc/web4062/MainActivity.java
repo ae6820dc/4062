@@ -241,14 +241,14 @@ public class MainActivity extends Activity {
         RefreshableWebView() {
             super(MainActivity.this);
             touchSlop = ViewConfiguration.get(MainActivity.this).getScaledTouchSlop();
-            refreshDistance = 80 * getResources().getDisplayMetrics().density;
+            refreshDistance = 56 * getResources().getDisplayMetrics().density;
         }
 
         @Override
         public boolean dispatchTouchEvent(MotionEvent event) {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
-                trackingPull = this == activeTab && !canScrollVertically(-1);
+                trackingPull = this == activeTab && getScrollY() <= 0;
                 startedMoving = false;
                 startX = event.getX();
                 startY = event.getY();
@@ -261,7 +261,7 @@ public class MainActivity extends Activity {
             if (trackingPull && (action == MotionEvent.ACTION_MOVE
                     || action == MotionEvent.ACTION_UP)) {
                 float sideways = Math.abs(event.getX() - startX);
-                if (canScrollVertically(-1) || distance < -touchSlop
+                if (getScrollY() > 0 || distance < -touchSlop
                         || (sideways > touchSlop && sideways >= distance)
                         || (!startedMoving && event.getEventTime() - event.getDownTime()
                                 >= ViewConfiguration.getLongPressTimeout())) {
@@ -275,10 +275,12 @@ public class MainActivity extends Activity {
             boolean handled = super.dispatchTouchEvent(event);
             if (action == MotionEvent.ACTION_UP) {
                 boolean refresh = trackingPull && distance >= refreshDistance
-                        && this == activeTab && !canScrollVertically(-1) && isWebUrl(getUrl());
+                        && this == activeTab && getScrollY() <= 0 && isWebUrl(getUrl());
                 trackingPull = false;
                 if (refresh) {
                     reload();
+                    Toast.makeText(MainActivity.this, R.string.refreshing_page,
+                            Toast.LENGTH_SHORT).show();
                 }
             }
             return handled;
@@ -286,7 +288,7 @@ public class MainActivity extends Activity {
 
         @Override
         protected void onScrollChanged(int x, int y, int oldX, int oldY) {
-            if (x != oldX || y != oldY) {
+            if (y > 0) {
                 trackingPull = false;
             }
             super.onScrollChanged(x, y, oldX, oldY);
