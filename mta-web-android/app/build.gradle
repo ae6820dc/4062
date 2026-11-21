@@ -11,7 +11,8 @@ android {
         applicationId 'io.github.ae6820dc.mtaweb'
         minSdk 23
         targetSdk 36
-        versionCode 3
-        versionName '1.2'
+        versionCode 4
+        testInstrumentationRunner 'io.github.ae6820dc.mtaweb.RefreshTestRunner'
+        versionName '1.3'
     }
 }
