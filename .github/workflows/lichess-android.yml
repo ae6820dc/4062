@@ -4,14 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'lichess-android/**'
       - '.github/workflows/lichess-android.yml'
+      - 'lichess-android/**'
+
 jobs:
   build:
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: lichess-android
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -28,19 +26,55 @@ jobs:
         with:
           gradle-version: '8.13'
       - name: Build APK
+        working-directory: lichess-android
         run: gradle :app:assembleDebug --no-daemon
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify touch refresh in Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          script: >-
+            cd lichess-android &&
+            gradle :app:assembleDebugAndroidTest --no-daemon &&
+            adb install app/build/outputs/apk/debug/app-debug.apk &&
+            adb install -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk &&
+            adb shell am instrument -w -r com.example.lichessweb.test/com.example.lichessweb.RefreshTestRunner > refresh-test.log &&
+            cat refresh-test.log &&
+            grep -Fx 'INSTRUMENTATION_STATUS_CODE: 0' refresh-test.log &&
+            grep -Fx 'INSTRUMENTATION_CODE: -1' refresh-test.log
       - name: Verify APK signature and metadata
+        working-directory: lichess-android
         run: |
           apk=app/build/outputs/apk/debug/app-debug.apk
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='com.example.lichessweb'" <<< "$metadata"
+          grep -F "package: name='com.example.lichessweb' versionCode='8' versionName='1.7'" <<< "$metadata"
           grep -Fx "application-label:'Lichess'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='com.example.lichessweb.MainActivity'" <<< "$metadata"
+      - name: Prepare versioned APK and compare signing certificates
+        run: |
+          mkdir -p 7
+          cp lichess-android/app/build/outputs/apk/debug/app-debug.apk 7/lichess-multitab-1.7.apk
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          signer() {
+            "$apksigner" verify --print-certs "$1" | grep -F 'certificate SHA-256 digest:'
+          }
+          original=$(signer apk/6/lichess-multitab-1.6.apk)
+          current=$(signer 7/lichess-multitab-1.7.apk)
+          if [[ "$original" != "$current" ]]; then
+            echo "::warning::APK signing certificates differ. Android will require a fresh install."
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: Lichess-APK
-          path: lichess-android/app/build/outputs/apk/debug/app-debug.apk
+          name: lichess-multitab-1.7
+          path: 7/lichess-multitab-1.7.apk
           if-no-files-found: error
