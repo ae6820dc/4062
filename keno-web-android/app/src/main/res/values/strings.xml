@@ -1,0 +1,18 @@
+<resources>
+    <string name="tabs_count">Tabs (%1$d)</string>
+    <string name="new_tab">New tab</string>
+    <string name="close_tab">Close</string>
+    <string name="open_tabs">Open tabs</string>
+    <string name="share">Share</string>
+    <string name="program_id" translatable="false">CAA25B7080554965</string>
+    <string name="program_id_display">Program ID : %1$s</string>
+    <string name="program_id_toggle" translatable="false">⋮</string>
+    <string name="collapse_program_id">Collapse Program ID</string>
+    <string name="expand_program_id">Expand Program ID</string>
+    <string name="upload_selection_error">The selected files could not be opened. Choose them again in Files.</string>
+    <string name="refreshing_page">Refreshing page…</string>
+    <string name="download_unsupported">This download link is unsupported.</string>
+    <string name="download_started">Downloading file…</string>
+    <string name="download_saved">File saved.</string>
+    <string name="download_failed">Could not save the file.</string>
+</resources>

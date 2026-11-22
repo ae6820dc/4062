@@ -1,0 +1,617 @@
+package io.github.ae6820dc.kenoweb;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Insets;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Message;
+import android.graphics.Typeface;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.WindowInsets;
+import android.webkit.CookieManager;
+import android.webkit.URLUtil;
+import android.webkit.ValueCallback;
+import android.webkit.WebBackForwardList;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+
+public class MainActivity extends Activity {
+    private static final int PICK_UPLOAD_FILES = 1;
+    private static final int SAVE_DOWNLOAD = 2;
+    private static final String HOME_URL = "https://bet.szerencsejatek.hu/mobil/jatekok/keno/sorsolasok#/";
+    private static final String SESSION_PREFS = "browserSession";
+    private static final String TAB_URLS = "tabUrls";
+    private static final String TAB_STATES = "tabStates";
+    private static final String ACTIVE_TAB = "activeTab";
+    private static final String PROGRAM_ID_EXPANDED = "programIdExpanded";
+
+    private final ArrayList<WebView> tabs = new ArrayList<>();
+    private final HashMap<WebView, String> tabUrls = new HashMap<>();
+    private SharedPreferences sessionPrefs;
+    private FrameLayout page;
+    private Button tabPicker;
+    private Button closeButton;
+    private Button shareButton;
+    private WebView activeTab;
+    private WebView filePickerTab;
+    private ValueCallback<Uri[]> filePickerCallback;
+    private boolean programIdExpanded;
+    private String downloadUrl, downloadAgent;
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        if (state != null) {
+            downloadUrl = state.getString("downloadUrl");
+            downloadAgent = state.getString("downloadAgent");
+        }
+        CookieManager.getInstance().setAcceptCookie(true);
+        sessionPrefs = getSharedPreferences(SESSION_PREFS, MODE_PRIVATE);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout toolbar = new LinearLayout(this);
+        tabPicker = addToolbarButton(toolbar, R.string.open_tabs, this::pickTab);
+        addToolbarButton(toolbar, R.string.new_tab, this::openHomeTab);
+        closeButton = addToolbarButton(toolbar, R.string.close_tab, () -> closeTab(activeTab));
+        shareButton = addToolbarButton(toolbar, R.string.share, this::shareActivePage);
+        programIdExpanded = state != null && state.getBoolean(PROGRAM_ID_EXPANDED);
+        TextView programId = new TextView(this);
+        programId.setText(getString(R.string.program_id_display, getString(R.string.program_id)));
+        programId.setTextSize(16);
+        programId.setTypeface(Typeface.MONOSPACE);
+        programId.setGravity(Gravity.CENTER);
+        programId.setTextIsSelectable(true);
+        root.addView(programId, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        Button toggle = new Button(this);
+        toggle.setText(R.string.program_id_toggle);
+        toggle.setTextSize(24);
+        toggle.setPadding(0, 0, 0, 0);
+        int touchSize = Math.round(48 * getResources().getDisplayMetrics().density);
+        toggle.setMinimumHeight(touchSize);
+        toolbar.addView(toggle, new LinearLayout.LayoutParams(
+                touchSize, LinearLayout.LayoutParams.MATCH_PARENT));
+        root.addView(toolbar);
+
+        updateProgramId(programId, toggle);
+        toggle.setOnClickListener(view -> {
+            programIdExpanded = !programIdExpanded;
+            updateProgramId(programId, toggle);
+        });
+        toolbar.addOnLayoutChangeListener((view, left, top, right, bottom,
+                                           oldLeft, oldTop, oldRight, oldBottom) -> {
+            int height = bottom - top;
+            if (programId.getLayoutParams().height != height) {
+                programId.getLayoutParams().height = height;
+                programId.requestLayout();
+            }
+        });
+
+        page = new FrameLayout(this);
+        root.addView(page, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            root.setOnApplyWindowInsetsListener((view, insets) -> {
+                Insets padding = insets.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                view.setPadding(padding.left, padding.top, padding.right, padding.bottom);
+                return insets;
+            });
+        }
+        setContentView(root);
+
+        ArrayList<Bundle> savedTabs = state == null ? null : state.getParcelableArrayList(TAB_STATES);
+        if (savedTabs == null || savedTabs.isEmpty()) {
+            restoreSession();
+        } else {
+            for (Bundle savedTab : savedTabs) {
+                WebView tab = createTab();
+                tabs.add(tab);
+                WebBackForwardList history = tab.restoreState(savedTab);
+                if (history != null && history.getCurrentItem() != null) {
+                    rememberUrl(tab, history.getCurrentItem().getUrl());
+                } else {
+                    String url = savedTab.getString(TAB_URLS, HOME_URL);
+                    tabUrls.put(tab, url);
+                    tab.loadUrl(url);
+                }
+            }
+            showTab(tabs.get(state.getInt(ACTIVE_TAB)));
+        }
+    }
+
+    private void restoreSession() {
+        JSONArray urls;
+        try {
+            urls = new JSONArray(sessionPrefs.getString(TAB_URLS, "[]"));
+        } catch (JSONException invalidSession) {
+            urls = new JSONArray();
+        }
+
+        for (int i = 0; i < urls.length(); i++) {
+            String url = urls.optString(i, "");
+            if (!isWebUrl(url)) {
+                continue;
+            }
+            WebView tab = createTab();
+            tabs.add(tab);
+            tabUrls.put(tab, url);
+            tab.loadUrl(url);
+        }
+        if (tabs.isEmpty()) {
+            openHomeTab();
+        } else {
+            int index = sessionPrefs.getInt(ACTIVE_TAB, 0);
+            showTab(tabs.get(Math.max(0, Math.min(index, tabs.size() - 1))));
+        }
+    }
+
+    private void rememberUrl(WebView tab, String url) {
+        if (tabs.contains(tab) && isWebUrl(url)) {
+            tabUrls.put(tab, url);
+        }
+    }
+
+    private void saveSession() {
+        if (activeTab == null) {
+            return;
+        }
+        JSONArray urls = new JSONArray();
+        int activeIndex = 0;
+        for (WebView tab : tabs) {
+            String url = tabUrls.get(tab);
+            if (url != null) {
+                if (tab == activeTab) {
+                    activeIndex = urls.length();
+                }
+                urls.put(url);
+            }
+        }
+        sessionPrefs.edit().putString(TAB_URLS, urls.toString())
+                .putInt(ACTIVE_TAB, activeIndex).apply();
+    }
+
+    private void updateProgramId(TextView programId, Button toggle) {
+        programId.setVisibility(programIdExpanded ? View.VISIBLE : View.GONE);
+        toggle.setContentDescription(getString(programIdExpanded
+                ? R.string.collapse_program_id : R.string.expand_program_id));
+    }
+
+    private Button addToolbarButton(LinearLayout toolbar, int label, Runnable action) {
+        Button button = new Button(this);
+        int sidePadding = Math.round(4 * getResources().getDisplayMetrics().density);
+        int touchHeight = Math.round(48 * getResources().getDisplayMetrics().density);
+        button.setMinimumWidth(0);
+        button.setMinWidth(0);
+        button.setMinimumHeight(touchHeight);
+        button.setPadding(sidePadding, button.getPaddingTop(), sidePadding, button.getPaddingBottom());
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setOnClickListener(view -> action.run());
+        toolbar.addView(button, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        return button;
+    }
+
+    private String shareableUrl() {
+        String url = activeTab == null ? null : activeTab.getUrl();
+        return isWebUrl(url) ? url : null;
+    }
+
+    private static boolean isWebUrl(String url) {
+        String scheme = url == null ? null : Uri.parse(url).getScheme();
+        return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
+    }
+
+    private void shareActivePage() {
+        String url = shareableUrl();
+        if (url == null) {
+            return;
+        }
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_TEXT, url);
+        startActivity(Intent.createChooser(share, getString(R.string.share)));
+    }
+
+    private final class RefreshableWebView extends WebView {
+        private final int touchSlop;
+        private final float refreshDistance;
+        private boolean trackingPull;
+        private boolean startedMoving;
+        private float startX;
+        private float startY;
+
+        RefreshableWebView() {
+            super(MainActivity.this);
+            touchSlop = ViewConfiguration.get(MainActivity.this).getScaledTouchSlop();
+            refreshDistance = 56 * getResources().getDisplayMetrics().density;
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent event) {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                trackingPull = this == activeTab && getScrollY() <= 0;
+                startedMoving = false;
+                startX = event.getX();
+                startY = event.getY();
+            }
+
+            if (event.getPointerCount() != 1 || action == MotionEvent.ACTION_CANCEL) {
+                trackingPull = false;
+            }
+            float distance = event.getY() - startY;
+            if (trackingPull && (action == MotionEvent.ACTION_MOVE
+                    || action == MotionEvent.ACTION_UP)) {
+                float sideways = Math.abs(event.getX() - startX);
+                if (getScrollY() > 0 || distance < -touchSlop
+                        || (sideways > touchSlop && sideways >= distance)
+                        || (!startedMoving && event.getEventTime() - event.getDownTime()
+                                >= ViewConfiguration.getLongPressTimeout())) {
+                    trackingPull = false;
+                } else if (distance > touchSlop) {
+                    startedMoving = true;
+                }
+            }
+
+            // Deliver the full gesture to WebView, including pinch and page touch events.
+            boolean handled = super.dispatchTouchEvent(event);
+            if (action == MotionEvent.ACTION_UP) {
+                boolean refresh = trackingPull && distance >= refreshDistance
+                        && this == activeTab && getScrollY() <= 0 && isWebUrl(getUrl());
+                trackingPull = false;
+                if (refresh) {
+                    reload();
+                    Toast.makeText(MainActivity.this, R.string.refreshing_page,
+                            Toast.LENGTH_SHORT).show();
+                }
+            }
+            return handled;
+        }
+
+        @Override
+        protected void onScrollChanged(int x, int y, int oldX, int oldY) {
+            if (y > 0) {
+                trackingPull = false;
+            }
+            super.onScrollChanged(x, y, oldX, oldY);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            trackingPull = false;
+            super.onDetachedFromWindow();
+        }
+    }
+
+    private WebView createTab() {
+        WebView tab = new RefreshableWebView();
+        tab.setDownloadListener((url, agent, disposition, mime, length) ->
+                chooseDownloadDestination(tab, url, agent, disposition, mime));
+        WebSettings settings = tab.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        settings.setSupportMultipleWindows(true);
+
+        tab.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (filePickerTab != null || !tabs.contains(view)) {
+                    callback.onReceiveValue(null);
+                    return true;
+                }
+                filePickerTab = view;
+                filePickerCallback = callback;
+                try {
+                    Intent picker = params.createIntent();
+                    picker.setAction(Intent.ACTION_OPEN_DOCUMENT);
+                    picker.addCategory(Intent.CATEGORY_OPENABLE);
+                    picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                            params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                    startActivityForResult(picker, PICK_UPLOAD_FILES);
+                } catch (ActivityNotFoundException | SecurityException unavailable) {
+                    filePickerTab = null;
+                    finishFilePicker(null);
+                }
+                return true;
+            }
+
+            @Override
+            public boolean onCreateWindow(WebView opener, boolean dialog, boolean userGesture,
+                                          Message resultMsg) {
+                int openerIndex = tabs.indexOf(opener);
+                if (!userGesture || openerIndex < 0) {
+                    return false;
+                }
+                WebView child = createTab();
+                tabs.add(openerIndex + 1, child);
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(child);
+                resultMsg.sendToTarget();
+                showTab(child);
+                return true;
+            }
+
+            @Override
+            public void onCloseWindow(WebView window) {
+                closeTab(window);
+            }
+        });
+        tab.setWebViewClient(new WebViewClient() {
+            @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                rememberUrl(view, url);
+                saveSession();
+                if (view == activeTab) {
+                    updateToolbar();
+                }
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (view == activeTab) {
+                    updateToolbar();
+                }
+                view.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');"
+                        + "if(!m){m=document.createElement('meta');m.name='viewport';"
+                        + "(document.head||document.documentElement).appendChild(m);}"
+                        + "m.setAttribute('content','width=device-width, initial-scale=1, "
+                        + "minimum-scale=0.25, maximum-scale=8, user-scalable=yes');})();", null);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                Uri uri = Uri.parse(url);
+                String scheme = uri.getScheme();
+                if ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)
+                        || "about".equalsIgnoreCase(scheme)) {
+                    return false;
+                }
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                } catch (ActivityNotFoundException | SecurityException ignored) {
+                    // No available external handler.
+                }
+                return true;
+            }
+        });
+        return tab;
+    }
+
+    private void chooseDownloadDestination(WebView tab, String url, String agent, String disposition, String mime) {
+        if (downloadUrl != null) return;
+        String address = WebDownload.resolveAddress(url, tab.getUrl());
+        if (address == null) {
+            Toast.makeText(this, R.string.download_unsupported, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        String type = mime == null || !mime.contains("/") ? "application/octet-stream" : mime;
+        String name = URLUtil.guessFileName(address, disposition, type)
+                .replace('/', '_').replace('\\', '_');
+        downloadUrl = address;
+        downloadAgent = agent;
+        Intent picker = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(type)
+                .putExtra(Intent.EXTRA_TITLE, name);
+        try {
+            startActivityForResult(picker, SAVE_DOWNLOAD);
+        } catch (ActivityNotFoundException | SecurityException unavailable) {
+            downloadUrl = downloadAgent = null;
+            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void saveDownload(int resultCode, Intent data) {
+        String url = downloadUrl;
+        String agent = downloadAgent;
+        downloadUrl = downloadAgent = null;
+        Uri destination = data == null ? null : data.getData();
+        if (resultCode != RESULT_OK || url == null || !isUploadDocument(destination)) return;
+
+        android.content.Context app = getApplicationContext();
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+        Toast.makeText(app, R.string.download_started, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            boolean saved = WebDownload.save(app.getContentResolver(), destination, url, agent);
+            ui.post(() -> Toast.makeText(app, saved ? R.string.download_saved : R.string.download_failed,
+                    Toast.LENGTH_LONG).show());
+        }, "GitHub Repos download").start();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SAVE_DOWNLOAD) {
+            saveDownload(resultCode, data);
+            return;
+        }
+        if (requestCode != PICK_UPLOAD_FILES) {
+            return;
+        }
+
+        filePickerTab = null;
+        if (filePickerCallback == null) {
+            return;
+        }
+        Uri[] selectedFiles = resultCode == RESULT_OK ? selectedUploadFiles(data) : null;
+        finishFilePicker(selectedFiles);
+        if (resultCode == RESULT_OK && selectedFiles == null) {
+            Toast.makeText(this, R.string.upload_selection_error, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private static Uri[] selectedUploadFiles(Intent data) {
+        if (data == null) {
+            return null;
+        }
+
+        ClipData items = data.getClipData();
+        if (items == null || items.getItemCount() == 0) {
+            Uri uri = data.getData();
+            return isUploadDocument(uri) ? new Uri[]{uri} : null;
+        }
+
+        Uri[] files = new Uri[items.getItemCount()];
+        for (int i = 0; i < files.length; i++) {
+            Uri uri = items.getItemAt(i).getUri();
+            if (!isUploadDocument(uri)) {
+                return null;
+            }
+            files[i] = uri;
+        }
+        return files;
+    }
+
+    private static boolean isUploadDocument(Uri uri) {
+        return uri != null && "content".equals(uri.getScheme());
+    }
+
+    private void finishFilePicker(Uri[] selectedFiles) {
+        ValueCallback<Uri[]> callback = filePickerCallback;
+        filePickerCallback = null;
+        if (callback != null) {
+            callback.onReceiveValue(selectedFiles);
+        }
+    }
+
+    private void openHomeTab() {
+        WebView tab = createTab();
+        tabs.add(tab);
+        tabUrls.put(tab, HOME_URL);
+        showTab(tab);
+        tab.loadUrl(HOME_URL);
+    }
+
+    private void showTab(WebView tab) {
+        page.removeAllViews();
+        page.addView(tab, new FrameLayout.LayoutParams(-1, -1));
+        activeTab = tab;
+        updateToolbar();
+        saveSession();
+    }
+
+    private void updateToolbar() {
+        tabPicker.setText(getString(R.string.tabs_count, tabs.size()));
+        closeButton.setEnabled(tabs.size() > 1);
+        shareButton.setEnabled(shareableUrl() != null);
+    }
+
+    private void pickTab() {
+        ArrayList<WebView> choices = new ArrayList<>(tabs);
+        String[] titles = new String[choices.size()];
+        for (int i = 0; i < choices.size(); i++) {
+            WebView tab = choices.get(i);
+            String title = tab.getTitle();
+            titles[i] = i + 1 + ". " + (title == null || title.isEmpty() ? getString(R.string.new_tab) : title);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.open_tabs)
+                .setSingleChoiceItems(titles, choices.indexOf(activeTab), (dialog, index) -> {
+                    dialog.dismiss();
+                    WebView selected = choices.get(index);
+                    if (tabs.contains(selected)) {
+                        showTab(selected);
+                    }
+                })
+                .show();
+    }
+
+    private void closeTab(WebView tab) {
+        int index = tabs.indexOf(tab);
+        if (index < 0 || tabs.size() == 1) {
+            return;
+        }
+        tabs.remove(index);
+        tabUrls.remove(tab);
+        if (tab == activeTab) {
+            showTab(tabs.get(Math.max(0, index - 1)));
+        } else {
+            updateToolbar();
+            saveSession();
+        }
+        if (tab == filePickerTab) {
+            finishFilePicker(null);
+        }
+        tab.destroy();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        ArrayList<Bundle> savedTabs = new ArrayList<>();
+        for (WebView tab : tabs) {
+            Bundle savedTab = new Bundle();
+            tab.saveState(savedTab);
+            savedTab.putString(TAB_URLS, tabUrls.get(tab));
+            savedTabs.add(savedTab);
+        }
+        state.putParcelableArrayList(TAB_STATES, savedTabs);
+        state.putInt(ACTIVE_TAB, tabs.indexOf(activeTab));
+        state.putBoolean(PROGRAM_ID_EXPANDED, programIdExpanded);
+        state.putString("downloadUrl", downloadUrl);
+        state.putString("downloadAgent", downloadAgent);
+        super.onSaveInstanceState(state);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (activeTab.canGoBack()) {
+            activeTab.goBack();
+        } else if (tabs.size() > 1) {
+            closeTab(activeTab);
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        saveSession();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        filePickerTab = null;
+        finishFilePicker(null);
+        page.removeAllViews();
+        for (WebView tab : tabs) {
+            tab.destroy();
+        }
+        tabs.clear();
+        tabUrls.clear();
+        activeTab = null;
+        super.onDestroy();
+    }
+}

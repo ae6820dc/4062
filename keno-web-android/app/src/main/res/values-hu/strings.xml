@@ -1,0 +1,16 @@
+<resources>
+    <string name="refreshing_page">Oldal frissítése…</string>
+    <string name="download_unsupported">Ez a letöltési hivatkozás nem támogatott.</string>
+    <string name="download_started">Fájl letöltése…</string>
+    <string name="download_saved">Fájl mentve.</string>
+    <string name="download_failed">Nem sikerült menteni a fájlt.</string>
+    <string name="tabs_count">Fülek (%1$d)</string>
+    <string name="new_tab">Új fül</string>
+    <string name="close_tab">Bezárás</string>
+    <string name="open_tabs">Megnyitott fülek</string>
+    <string name="share">Megosztás</string>
+    <string name="program_id_display">Programazonosító: %1$s</string>
+    <string name="collapse_program_id">Programazonosító elrejtése</string>
+    <string name="expand_program_id">Programazonosító megjelenítése</string>
+    <string name="upload_selection_error">A kijelölt fájlok nem nyithatók meg. Válaszd ki őket újra.</string>
+</resources>

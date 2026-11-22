@@ -1,0 +1,18 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.ae6820dc.kenoweb'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+
+    defaultConfig {
+        applicationId 'io.github.ae6820dc.kenoweb'
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        testInstrumentationRunner 'io.github.ae6820dc.kenoweb.RefreshTestRunner'
+        versionName '1.0'
+    }
+}
