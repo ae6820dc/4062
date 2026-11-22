@@ -56,16 +56,16 @@ jobs:
           tools="$ANDROID_HOME/build-tools/36.0.0"
           "$tools/apksigner" verify "$apk"
           metadata=$("$tools/aapt" dump badging "$apk")
-          grep -F "package: name='io.github.ae6820dc.kenoweb' versionCode='1' versionName='1.0'" <<< "$metadata"
+          grep -F "package: name='io.github.ae6820dc.kenoweb' versionCode='2' versionName='1.1'" <<< "$metadata"
           grep -Fx "application-label:'Kenó sorsolások'" <<< "$metadata"
           grep -Fx "targetSdkVersion:'36'" <<< "$metadata"
           grep -F "launchable-activity: name='io.github.ae6820dc.kenoweb.MainActivity'" <<< "$metadata"
       - name: Prepare versioned APK
         run: |
           mkdir -p apk/8
-          cp keno-web-android/app/build/outputs/apk/debug/app-debug.apk apk/8/keno-multitab-1.0.apk
+          cp keno-web-android/app/build/outputs/apk/debug/app-debug.apk apk/8/keno-multitab-1.1.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: keno-multitab-1.0
-          path: apk/8/keno-multitab-1.0.apk
+          name: keno-multitab-1.1
+          path: apk/8/keno-multitab-1.1.apk
           if-no-files-found: error
